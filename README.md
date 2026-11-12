@@ -14,6 +14,16 @@ uv run fastapi dev api/main.py
 
 - Documentação (Swagger UI): http://127.0.0.1:8000/
 
+## Subindo o ADK web
+
+Por padrão o ADK web também usa a porta 8000, que já é da API. Para evitar o conflito, recomenda-se rodá-lo na 8001:
+
+```bash
+uv run adk web agents --port 8001
+```
+
+- Interface: http://127.0.0.1:8001/
+
 ## Dados
 
 Copie `.env.example` para `.env` e preencha as variáveis faltantes. Valores sugeridos (caminhos relativos à raiz do projeto):
