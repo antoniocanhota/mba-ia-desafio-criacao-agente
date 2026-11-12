@@ -7,7 +7,9 @@ authors = [
     { name = "Antonio Canhota", email = "1024835+antoniocanhota@users.noreply.github.com" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "google-adk===2.2.0",
+]
 
 [project.scripts]
 mba-ia-desafio-criacao-agente = "mba_ia_desafio_criacao_agente:main"
