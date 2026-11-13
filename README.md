@@ -39,7 +39,7 @@ VISITANTES_JSON_PATH=dados/visitantes.json
 ```
 
 - **Apartamentos e áreas** são somente leitura na API (`GET /apartamentos`, `GET /areas`) e ficam no banco, carregados dos JSON pelo script de reset.
-- **Reservas e visitantes** têm CRUD (`/apartamentos/{apartamento}/reservas`, `/apartamentos/{apartamento}/visitantes`) e também ficam no banco. Reservas e visitantes têm chave estrangeira para `apartamentos` (e reservas para `areas`), e uma área só aceita uma reserva por data (índice único). As tabelas são criadas quando a API sobe, mas só são populadas pelo script de reset, então rode-o antes da primeira execução.
+- **Reservas e visitantes** só podem ser listados na API (`GET /apartamentos/{apartamento}/reservas`, `GET /apartamentos/{apartamento}/visitantes`) e também ficam no banco. Reservas e visitantes têm chave estrangeira para `apartamentos` (e reservas para `areas`), e uma área só aceita uma reserva por data (índice único). As tabelas são criadas quando a API sobe, mas só são populadas pelo script de reset, então rode-o antes da primeira execução.
 
 ### Resetar o banco
 
