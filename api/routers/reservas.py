@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..database import get_session
-from ..models import Reserva
+from db.database import get_session
+from db.models import Reserva
 from ..schemas import ReservaResposta
 
 router = APIRouter(prefix="/apartamentos/{apartamento}/reservas", tags=["reservas"])

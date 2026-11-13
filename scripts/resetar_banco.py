@@ -5,7 +5,7 @@ import os
 from datetime import date
 from pathlib import Path
 
-from api.database import (
+from db.database import (
     DB_PATH,
     Base,
     SessionLocal,
@@ -13,7 +13,7 @@ from api.database import (
     engine,
     gerar_codigo,
 )
-from api.models import Apartamento, Area, Reserva, Visitante
+from db.models import Apartamento, Area, Reserva, Visitante
 
 
 def carregar(variavel: str) -> list[dict]:

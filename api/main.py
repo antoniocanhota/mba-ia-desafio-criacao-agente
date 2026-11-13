@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from .database import criar_tabelas
+from db.database import criar_tabelas
 from .routers.apartamentos import router as apartamentos_router
 from .routers.areas import router as areas_router
 from .routers.reservas import router as reservas_router

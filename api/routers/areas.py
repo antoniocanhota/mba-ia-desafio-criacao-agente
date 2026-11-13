@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..database import get_session
-from ..models import Area
+from db.database import get_session
+from db.models import Area
 from ..schemas import AreaResposta
 
 router = APIRouter(prefix="/areas", tags=["areas"])
