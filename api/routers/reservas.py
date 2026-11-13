@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..database import gerar_codigo, get_session
+from ..database import get_session, inserir_com_codigo
 from ..models import Reserva
 from ..schemas import ReservaEntrada, ReservaResposta
 
@@ -45,13 +45,12 @@ def obter_reserva(apartamento: str, codigo: str, session: SessionDep) -> Reserva
 def criar_reserva(
     apartamento: str, dados: ReservaEntrada, session: SessionDep
 ) -> ReservaResposta:
-    reserva = Reserva(
-        codigo=gerar_codigo(session, Reserva.codigo, "RSV"),
-        apartamento=apartamento,
-        **dados.model_dump(),
+    reserva = inserir_com_codigo(
+        session,
+        Reserva.codigo,
+        "RSV",
+        lambda codigo: Reserva(codigo=codigo, apartamento=apartamento, **dados.model_dump()),
     )
-    session.add(reserva)
-    session.commit()
     return ReservaResposta.model_validate(reserva)
 
 

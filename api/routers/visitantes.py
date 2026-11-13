@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..database import gerar_codigo, get_session
+from ..database import get_session, inserir_com_codigo
 from ..models import Visitante
 from ..schemas import VisitanteEntrada, VisitanteResposta
 
@@ -41,13 +41,12 @@ def obter_visitante(apartamento: str, id: str, session: SessionDep) -> Visitante
 def criar_visitante(
     apartamento: str, dados: VisitanteEntrada, session: SessionDep
 ) -> VisitanteResposta:
-    visitante = Visitante(
-        id=gerar_codigo(session, Visitante.id, "VIS"),
-        apartamento=apartamento,
-        **dados.model_dump(),
+    visitante = inserir_com_codigo(
+        session,
+        Visitante.id,
+        "VIS",
+        lambda id: Visitante(id=id, apartamento=apartamento, **dados.model_dump()),
     )
-    session.add(visitante)
-    session.commit()
     return VisitanteResposta.model_validate(visitante)
 
 
