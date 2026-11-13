@@ -17,9 +17,11 @@ engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread"
 
 
 @event.listens_for(engine, "connect")
-def _ativar_chaves_estrangeiras(dbapi_conn, _) -> None:
+def _configurar_conexao(dbapi_conn, _) -> None:
     # o SQLite só aplica chaves estrangeiras com este PRAGMA, por conexão
     dbapi_conn.execute("PRAGMA foreign_keys = ON")
+    # com o banco travado por outra gravação, espera até 5 s em vez de falhar na hora
+    dbapi_conn.execute("PRAGMA busy_timeout = 5000")
 
 
 SessionLocal = sessionmaker(engine, expire_on_commit=False)
