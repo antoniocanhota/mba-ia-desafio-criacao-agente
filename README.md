@@ -46,5 +46,5 @@ VISITANTES_JSON_PATH=dados/visitantes.json
 O script abaixo apaga as tabelas `apartamentos`, `areas`, `reservas` e `visitantes`, recria e carrega os dados iniciais dos arquivos apontados por `APARTAMENTOS_JSON_PATH`, `AREAS_JSON_PATH`, `RESERVAS_JSON_PATH` e `VISITANTES_JSON_PATH`. Útil para voltar ao estado original depois de testar alterações pela API:
 
 ```bash
-uv run python -m scripts.resetar_banco
+uv run python -m db.reset
 ```
