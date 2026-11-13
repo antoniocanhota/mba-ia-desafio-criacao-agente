@@ -9,8 +9,10 @@ uv sync
 ## Subindo a API
 
 ```bash
-uv run fastapi dev api/main.py
+uv run fastapi run api/main.py
 ```
+
+O `fastapi run` sobe sem auto-reload, então a API só reinicia quando você a reinicia, o que é mais previsível para a entrega. Durante o desenvolvimento, `uv run fastapi dev api/main.py` recarrega a API a cada alteração no código.
 
 - Documentação (Swagger UI): http://127.0.0.1:8000/
 
