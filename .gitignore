@@ -5,4 +5,4 @@ __pycache__/
 .vscode/
 
 banco.db
-agents/*/session.db
+agents/*/.adk/
