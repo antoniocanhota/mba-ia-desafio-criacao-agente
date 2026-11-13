@@ -19,4 +19,8 @@ root_agent = Agent(
     mode="chat",
 )
 
-app = App(name="aurora", root_agent=root_agent, plugins=[ExigirApartamento()])
+app = App(
+    name="aurora",
+    root_agent=root_agent,
+    plugins=[ExigirApartamento()],
+)
