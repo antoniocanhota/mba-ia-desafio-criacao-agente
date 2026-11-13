@@ -3,14 +3,14 @@ from google.adk.agents.callback_context import CallbackContext
 from google.adk.plugins import BasePlugin
 from google.genai import types
 
-MENSAGEM_SEM_APARTAMENTO = (
-    "Esta sessão não está associada a um apartamento, então não posso atender por aqui. "
-    "Inicie o atendimento pelo canal do condomínio."
-)
+from db.database import SessionLocal
+from db.repo.apartamentos import apartamento_existe
+
+MENSAGEM_APARTAMENTO_INVALIDO = "Apartamento não informado ou inválido."
 
 
 class ExigirApartamento(BasePlugin):
-    """Barra qualquer agente, antes do modelo, se a sessão não tem apartamento.
+    """Barra qualquer agente, antes do modelo, se a sessão não tem um apartamento válido.
 
     O apartamento só pode vir do state da sessão; o modelo nunca o pergunta ao morador.
     Usa before_agent_callback porque o before_run_callback não interrompe a execução no
@@ -24,6 +24,12 @@ class ExigirApartamento(BasePlugin):
     async def before_agent_callback(
         self, *, agent: BaseAgent, callback_context: CallbackContext
     ) -> types.Content | None:
-        if callback_context.state.get("apartamento"):
-            return None
-        return types.Content(role="model", parts=[types.Part(text=MENSAGEM_SEM_APARTAMENTO)])
+        apartamento = callback_context.state.get("apartamento")
+        if apartamento:
+            with SessionLocal() as session:
+                if apartamento_existe(session, str(apartamento)):
+                    return None
+        return types.Content(
+            role="model", parts=[types.Part(text=MENSAGEM_APARTAMENTO_INVALIDO)]
+        )
+
