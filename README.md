@@ -21,7 +21,7 @@ O `fastapi run` sobe sem auto-reload, então a API só reinicia quando você a r
 Por padrão o ADK web também usa a porta 8000, que já é da API. Para evitar o conflito, recomenda-se rodá-lo na 8001:
 
 ```bash
-uv run adk web agents --port 8001
+PYTHONPATH=. uv run adk web agents --port 8001
 ```
 
 - Interface: http://127.0.0.1:8001/
