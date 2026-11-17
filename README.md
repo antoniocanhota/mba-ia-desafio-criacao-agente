@@ -64,3 +64,10 @@ uv run python -m db.reset --sessoes
 - `POST /sessoes/{session_id}/mensagens` com `{"texto": "..."}` devolve `resposta` e `confirmacoes_pendentes`.
 - `GET /sessoes/{session_id}/eventos` lista todos os eventos da sessão.
 - Sessão inexistente devolve `404` nas rotas com `{session_id}`.
+
+## Testes
+
+```bash
+uv run pytest                 # precisa de GOOGLE_API_KEY no .env; usa bancos temporários
+uv run pytest -m "not llm"    # só o que não chama o Gemini
+```

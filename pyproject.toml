@@ -20,3 +20,17 @@ mba-ia-desafio-criacao-agente = "mba_ia_desafio_criacao_agente:main"
 [build-system]
 requires = ["uv_build>=0.13.5,<0.14.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.2.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = ["--strict-markers", "--tb=short", "-ra"]
+markers = [
+    "llm: chama o Gemini real (precisa de GOOGLE_API_KEY; consome cota)",
+]

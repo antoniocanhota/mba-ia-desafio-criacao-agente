@@ -16,3 +16,18 @@ Como usar:
 3. Só então escreva ou ajuste o código, seguindo os padrões encontrados.
 
 Aplica-se a: criação de agentes e sub-agentes, tools, callbacks, plugins, sessões/estado, runners e qualquer outro uso do `google.adk`.
+
+## Testes automatizados
+
+Ao escrever ou alterar testes, siga a skill `python-testing-patterns` (pytest, fixtures, markers, padrão AAA, nomes `test_<unidade>_<cenário>_<esperado>`).
+
+**Não parametrize testes** (`@pytest.mark.parametrize`): escreva um teste explícito por caso, mesmo que fiquem parecidos. Cada passo do fluxo do avaliador e cada rota do contrato deve ser legível e falhar isoladamente.
+
+- `tests/test_api.py`: um arquivo só, com o "Contrato da API" e, depois, um teste por passo do "Fluxo do avaliador" do `enunciado.canhota.md`, em sequência. Só há testes do que já foi implementado; cada onda acrescenta os dela. Testes que chamam o Gemini levam `@pytest.mark.llm`.
+- Rodar: `uv run pytest` (precisa de `GOOGLE_API_KEY` no `.env`; usa o Gemini real e sobe a API com bancos temporários, sem tocar `banco.db`/`sessoes.db`). Sem LLM: `uv run pytest -m "not llm"`.
+
+Ao implementar uma onda:
+
+1. Escreva os testes dos passos do "Fluxo do avaliador" que a onda entrega (um teste por passo, na ordem do fluxo) e ajuste o contrato em `tests/test_api.py`, se a onda mexer nele.
+2. **Rode `uv run pytest` antes de considerar a onda concluída.** A suíte inteira deve passar.
+3. Se algum teste falhar, tente corrigir o **código** e rode de novo, no máximo **2 vezes**. Se continuar falhando, **pare e avise o usuário** (quais testes falharam, o erro e o que foi tentado) para ele intervir manualmente. Não enfraqueça, remova nem pule testes para fazê-los passar.
