@@ -19,9 +19,15 @@ def dados_iniciais(servidor):
 
 
 @pytest.fixture(scope="module")
-def s1(api) -> str:
-    """Passo 2: sessão S1 do apartamento 101, usada nos passos seguintes."""
-    return api.criar_sessao("101")
+def resposta_s1(api):
+    """Passo 2: resposta da criação da sessão S1 do apartamento 101."""
+    return api.http.post("/sessoes", json={"apartamento": "101"})
+
+
+@pytest.fixture(scope="module")
+def s1(resposta_s1) -> str:
+    """Sessão S1, usada nos passos seguintes."""
+    return resposta_s1.json()["session_id"]
 
 
 # --- Contrato da API --------------------------------------------------------------
@@ -85,8 +91,11 @@ def test_passo_01_dados_iniciais_listam_rsv_1377_e_marina(api):
 
 
 @pytest.mark.llm
-def test_passo_02_criar_s1_devolve_session_id(s1):
-    assert s1
+def test_passo_02_criar_s1_devolve_201_e_session_id(resposta_s1):
+    assert resposta_s1.status_code == 201
+    session_id = resposta_s1.json()["session_id"]
+    assert isinstance(session_id, str)
+    assert session_id.strip() != ""
 
 
 @pytest.mark.llm
