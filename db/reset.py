@@ -1,5 +1,6 @@
 """Recria as tabelas do banco a partir dos JSON definidos no .env."""
 
+import argparse
 import json
 import os
 from datetime import date
@@ -20,7 +21,22 @@ def carregar(variavel: str) -> list[dict]:
     return json.loads(Path(os.environ[variavel]).read_text(encoding="utf-8"))
 
 
+def apagar_sessoes() -> None:
+    caminho = Path(os.environ["SESSIONS_DB_PATH"])
+    for arquivo in (caminho, *(caminho.with_name(caminho.name + s) for s in ("-wal", "-shm"))):
+        arquivo.unlink(missing_ok=True)
+    print(f"Sessões apagadas ({caminho.name}).")
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--sessoes",
+        action="store_true",
+        help="também apaga o banco de sessões (padrão: mantém as conversas)",
+    )
+    args = parser.parse_args()
+
     apartamentos = carregar("APARTAMENTOS_JSON_PATH")
     areas = carregar("AREAS_JSON_PATH")
     reservas = carregar("RESERVAS_JSON_PATH")
@@ -45,6 +61,9 @@ def main() -> None:
             )
             session.flush()
         session.commit()
+
+    if args.sessoes:
+        apagar_sessoes()
 
     print(
         f"Banco {DB_PATH.name} resetado: {len(apartamentos)} apartamentos, {len(areas)} áreas, "

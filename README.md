@@ -8,6 +8,8 @@ uv sync
 
 ## Subindo a API
 
+Com o `.env` preenchido (ver [Dados](#dados)) e o banco carregado (`uv run python -m db.reset`):
+
 ```bash
 uv run fastapi run api/main.py
 ```
@@ -32,6 +34,7 @@ Copie `.env.example` para `.env` e preencha as variáveis faltantes. Valores sug
 
 ```
 DB_PATH=banco.db
+SESSIONS_DB_PATH=sessoes.db
 APARTAMENTOS_JSON_PATH=dados/apartamentos.json
 AREAS_JSON_PATH=dados/areas.json
 RESERVAS_JSON_PATH=dados/reservas.json
@@ -48,3 +51,16 @@ O script abaixo apaga as tabelas `apartamentos`, `areas`, `reservas` e `visitant
 ```bash
 uv run python -m db.reset
 ```
+
+Por padrão o reset **não** apaga as sessões (conversas e confirmações pendentes), que ficam em `SESSIONS_DB_PATH`, arquivo separado do banco de reservas e visitantes. Para apagá-las também:
+
+```bash
+uv run python -m db.reset --sessoes
+```
+
+## Sessões e conversas
+
+- `POST /sessoes` com `{"apartamento": "101"}` cria a sessão (`201`) e grava o apartamento no state.
+- `POST /sessoes/{session_id}/mensagens` com `{"texto": "..."}` devolve `resposta` e `confirmacoes_pendentes`.
+- `GET /sessoes/{session_id}/eventos` lista todos os eventos da sessão.
+- Sessão inexistente devolve `404` nas rotas com `{session_id}`.
