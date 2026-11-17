@@ -8,6 +8,7 @@ from google.adk.sessions.sqlite_session_service import SqliteSessionService
 from google.genai import types
 
 from ..schemas.sessao import (
+    ConfirmacaoEntrada,
     ConfirmacaoPendente,
     MensagemEntrada,
     MensagemResposta,
@@ -72,6 +73,38 @@ def _confirmacoes_pendentes(eventos: list[Event]) -> list[ConfirmacaoPendente]:
     return list(pendentes.values())
 
 
+def _invocation_id_da_pendencia(eventos: list[Event], id_confirmacao: str) -> str | None:
+    """invocation_id do evento que pediu a confirmação (usado na retomada, se houver)."""
+    for evento in eventos:
+        for chamada in evento.get_function_calls():
+            if chamada.name == REQUEST_CONFIRMATION and chamada.id == id_confirmacao:
+                return evento.invocation_id
+    return None
+
+
+async def _executar(
+    session_service: SqliteSessionService,
+    runner: Runner,
+    sessao: Session,
+    mensagem: types.Content,
+    invocation_id: str | None = None,
+) -> MensagemResposta:
+    textos: list[str] = []
+    async for evento in runner.run_async(
+        user_id=sessao.user_id,
+        session_id=sessao.id,
+        new_message=mensagem,
+        invocation_id=invocation_id,
+    ):
+        if evento.is_final_response() and evento.content and evento.content.parts:
+            textos.extend(p.text for p in evento.content.parts if p.text)
+
+    # os eventos da rodada só estão gravados depois do run_async
+    atualizada = await buscar_sessao(session_service, runner, sessao.id)
+    pendentes = _confirmacoes_pendentes(atualizada.events) if atualizada else []
+    return MensagemResposta(resposta="\n".join(textos), confirmacoes_pendentes=pendentes)
+
+
 def _nao_encontrada() -> HTTPException:
     return HTTPException(status_code=404, detail="Sessão não encontrada.")
 
@@ -100,17 +133,46 @@ async def enviar_mensagem(
         raise _nao_encontrada()
 
     mensagem = types.Content(role="user", parts=[types.Part(text=entrada.texto)])
-    textos: list[str] = []
-    async for evento in runner.run_async(
-        user_id=sessao.user_id, session_id=sessao.id, new_message=mensagem
-    ):
-        if evento.is_final_response() and evento.content and evento.content.parts:
-            textos.extend(p.text for p in evento.content.parts if p.text)
+    return await _executar(session_service, runner, sessao, mensagem)
 
-    # os eventos da rodada só estão gravados depois do run_async
-    atualizada = await buscar_sessao(session_service, runner, session_id)
-    pendentes = _confirmacoes_pendentes(atualizada.events) if atualizada else []
-    return MensagemResposta(resposta="\n".join(textos), confirmacoes_pendentes=pendentes)
+
+@router.post("/{session_id}/confirmacoes")
+async def responder_confirmacao(
+    session_id: str,
+    entrada: ConfirmacaoEntrada,
+    runner: RunnerDep,
+    session_service: SessionServiceDep,
+) -> MensagemResposta:
+    sessao = await buscar_sessao(session_service, runner, session_id)
+    if sessao is None:
+        raise _nao_encontrada()
+
+    # só vale confirmação pendente nesta sessão; id desconhecido ou já respondido é 409
+    if entrada.id not in {p.id for p in _confirmacoes_pendentes(sessao.events)}:
+        raise HTTPException(
+            status_code=409, detail="Não há confirmação pendente com esse id."
+        )
+
+    # a decisão vai ao ADK como FunctionResponse; nada do que o morador escreve a substitui
+    decisao = types.Content(
+        role="user",
+        parts=[
+            types.Part(
+                function_response=types.FunctionResponse(
+                    id=entrada.id,
+                    name=REQUEST_CONFIRMATION,
+                    response={"confirmed": entrada.confirmado},
+                )
+            )
+        ],
+    )
+    return await _executar(
+        session_service,
+        runner,
+        sessao,
+        decisao,
+        invocation_id=_invocation_id_da_pendencia(sessao.events, entrada.id),
+    )
 
 
 @router.get("/{session_id}/eventos")

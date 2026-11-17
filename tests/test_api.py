@@ -73,6 +73,18 @@ def test_mensagem_com_sessao_inexistente_devolve_404(api):
     assert resposta.status_code == 404
 
 
+def test_confirmacao_com_sessao_inexistente_devolve_404(api):
+    resposta = api.confirmar(SESSAO_INEXISTENTE, "qualquer-id", True)
+
+    assert resposta.status_code == 404
+
+
+def test_confirmacao_com_id_que_nao_esta_pendente_devolve_409(api, sessao_101):
+    resposta = api.confirmar(sessao_101, "id-inexistente", True)
+
+    assert resposta.status_code == 409
+
+
 @pytest.mark.llm
 def test_mensagem_inofensiva_devolve_resposta_e_lista_vazia_de_pendencias(api, sessao_101):
     corpo = api.enviar(sessao_101, "Olá, tudo bem?")
@@ -111,6 +123,18 @@ def test_passo_03_dados_do_302_nao_vazam_na_resposta_nem_nos_eventos(api, s1):
 
 
 @pytest.mark.llm
+def test_passo_09_id_inexistente_devolve_409_e_nao_altera_dados(api, s1):
+    reservas_antes = api.reservas("101")
+    visitantes_antes = api.visitantes("101")
+
+    resposta = api.confirmar(s1, "id-inexistente", True)
+
+    assert resposta.status_code == 409
+    assert api.reservas("101") == reservas_antes
+    assert api.visitantes("101") == visitantes_antes
+
+
+@pytest.mark.llm
 def test_passo_09_eventos_de_sessao_inexistente_devolve_404(api):
     assert api.http.get("/sessoes/sessao-inexistente/eventos").status_code == 404
 
@@ -130,6 +154,37 @@ def test_passo_11_autorizar_visitante_gera_pendencia_sem_gravar(api, s1):
     assert "Joana Ribeiro" in str(pendentes[0]["detalhes"])
     assert "2030-04-21" in str(pendentes[0]["detalhes"])
     assert all(v["nome"] != "Joana Ribeiro" for v in api.visitantes("101"))
+
+
+@pytest.mark.llm
+def test_passo_11_negar_confirmacao_nao_grava_visitante(api):
+    sessao = api.criar_sessao("101")
+    corpo = api.enviar(sessao, "Libera a entrada da Paula Nunes no dia 2030-04-22.")
+    pendente = corpo["confirmacoes_pendentes"][0]
+
+    resposta = api.confirmar(sessao, pendente["id"], False)
+
+    assert resposta.status_code == 200
+    assert resposta.json()["confirmacoes_pendentes"] == []
+    assert all(v["nome"] != "Paula Nunes" for v in api.visitantes("101"))
+
+
+@pytest.mark.llm
+def test_passo_11_aprovar_confirmacao_grava_visitante_uma_unica_vez(api):
+    sessao = api.criar_sessao("101")
+    corpo = api.enviar(sessao, "Libera a entrada da Joana Ribeiro no dia 2030-04-21.")
+    pendente = corpo["confirmacoes_pendentes"][0]
+
+    resposta = api.confirmar(sessao, pendente["id"], True)
+
+    assert resposta.status_code == 200
+    assert resposta.json()["confirmacoes_pendentes"] == []
+    assert api.visitantes("101") == [{"nome": "Joana Ribeiro", "data": "2030-04-21"}]
+
+    repetida = api.confirmar(sessao, pendente["id"], True)
+
+    assert repetida.status_code == 409
+    assert api.visitantes("101") == [{"nome": "Joana Ribeiro", "data": "2030-04-21"}]
 
 
 @pytest.mark.llm

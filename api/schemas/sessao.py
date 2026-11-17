@@ -15,6 +15,11 @@ class MensagemEntrada(BaseModel):
     texto: str
 
 
+class ConfirmacaoEntrada(BaseModel):
+    id: str
+    confirmado: bool
+
+
 class ConfirmacaoPendente(BaseModel):
     id: str
     acao: str

@@ -62,6 +62,7 @@ uv run python -m db.reset --sessoes
 
 - `POST /sessoes` com `{"apartamento": "101"}` cria a sessão (`201`) e grava o apartamento no state.
 - `POST /sessoes/{session_id}/mensagens` com `{"texto": "..."}` devolve `resposta` e `confirmacoes_pendentes`.
+- `POST /sessoes/{session_id}/confirmacoes` com `{"id": "...", "confirmado": true|false}` responde uma confirmação pendente (mesmo formato da rota de mensagens). O `id` precisa estar em `confirmacoes_pendentes` da sessão; qualquer outro, inclusive já respondido, devolve `409` sem executar nada. A decisão volta ao ADK como `FunctionResponse` de `adk_request_confirmation` (ver [Remote confirmation](https://google.github.io/adk-docs/tools-custom/confirmation)), nunca por texto da conversa.
 - `GET /sessoes/{session_id}/eventos` lista todos os eventos da sessão.
 - Sessão inexistente devolve `404` nas rotas com `{session_id}`.
 

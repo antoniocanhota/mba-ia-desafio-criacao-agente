@@ -108,6 +108,12 @@ class Api:
         assert resposta.status_code == 200, resposta.text
         return resposta.json()
 
+    def confirmar(self, session_id: str, id_confirmacao: str, confirmado: bool) -> httpx.Response:
+        return self.http.post(
+            f"/sessoes/{session_id}/confirmacoes",
+            json={"id": id_confirmacao, "confirmado": confirmado},
+        )
+
     def eventos(self, session_id: str) -> list[dict]:
         resposta = self.http.get(f"/sessoes/{session_id}/eventos")
         assert resposta.status_code == 200, resposta.text
