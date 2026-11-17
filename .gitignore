@@ -7,3 +7,8 @@ __pycache__/
 banco.db
 sessoes.db*
 agents/*/.adk/
+
+.agents
+.claude
+skills-lock.json
+CLAUDE.md
