@@ -17,9 +17,13 @@ Como usar:
 
 Aplica-se a: criação de agentes e sub-agentes, tools, callbacks, plugins, sessões/estado, runners e qualquer outro uso do `google.adk`.
 
+## FastAPI: use a skill `fastapi`
+
+Ao criar ou alterar a API (`api/`) ou seus testes (`tests/test_api.py`), invoque a skill `fastapi` **antes** de escrever o código, para seguir as boas práticas e convenções atuais (rotas, modelos Pydantic, dependências, streaming/SSE).
+
 ## Testes automatizados
 
-Ao escrever ou alterar testes, siga a skill `python-testing-patterns` (pytest, fixtures, markers, padrão AAA, nomes `test_<unidade>_<cenário>_<esperado>`).
+Ao escrever ou alterar testes, siga a skill `python-testing-patterns` (pytest, fixtures, markers, padrão AAA, nomes `test_<unidade>_<cenário>_<esperado>`). Em `tests/test_api.py`, aplique também a skill `fastapi` (ex.: `TestClient`, dependências, respostas da API).
 
 **Não parametrize testes** (`@pytest.mark.parametrize`): escreva um teste explícito por caso, mesmo que fiquem parecidos. Cada passo do fluxo do avaliador e cada rota do contrato deve ser legível e falhar isoladamente.
 
