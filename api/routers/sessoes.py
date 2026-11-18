@@ -2,23 +2,18 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from google.adk import Runner
-from google.adk.events import Event
-from google.adk.sessions import Session
 from google.adk.sessions.sqlite_session_service import SqliteSessionService
-from google.genai import types
 
 from ..schemas.sessao import (
     ConfirmacaoEntrada,
-    ConfirmacaoPendente,
     MensagemEntrada,
     MensagemResposta,
     SessaoEntrada,
     SessaoResposta,
 )
+from ..services import sessoes as servico
 
 router = APIRouter(prefix="/sessoes", tags=["sessoes"])
-
-REQUEST_CONFIRMATION = "adk_request_confirmation"
 
 
 def get_runner(request: Request) -> Runner:
@@ -31,78 +26,6 @@ def get_session_service(request: Request) -> SqliteSessionService:
 
 RunnerDep = Annotated[Runner, Depends(get_runner)]
 SessionServiceDep = Annotated[SqliteSessionService, Depends(get_session_service)]
-
-
-async def buscar_sessao(
-    session_service: SqliteSessionService, runner: Runner, session_id: str
-) -> Session | None:
-    """Acha a sessão só pelo id, já com os eventos; None se não existe.
-
-    O ADK indexa a sessão por (app, user_id, id) e o contrato da API só traz o id.
-    O user_id (o apartamento) é descoberto aqui, nunca recebido do cliente.
-    """
-    sessoes = await session_service.list_sessions(app_name=runner.app_name)
-    for sessao in sessoes.sessions:
-        if sessao.id == session_id:
-            return await session_service.get_session(
-                app_name=runner.app_name,
-                user_id=sessao.user_id,
-                session_id=session_id,
-            )
-    return None
-
-
-def _confirmacoes_pendentes(eventos: list[Event]) -> list[ConfirmacaoPendente]:
-    """Chamadas `adk_request_confirmation` ainda sem `FunctionResponse` com o mesmo id.
-
-    Vem só dos eventos, então sobrevive ao reinício da API.
-    """
-    pendentes: dict[str, ConfirmacaoPendente] = {}
-    for evento in eventos:
-        for chamada in evento.get_function_calls():
-            if chamada.name == REQUEST_CONFIRMATION and chamada.id:
-                original = (chamada.args or {}).get("originalFunctionCall", {})
-                pendentes[chamada.id] = ConfirmacaoPendente(
-                    id=chamada.id,
-                    acao=original.get("name", ""),
-                    detalhes=original.get("args") or {},
-                )
-        for resposta in evento.get_function_responses():
-            if resposta.name == REQUEST_CONFIRMATION and resposta.id:
-                pendentes.pop(resposta.id, None)
-    return list(pendentes.values())
-
-
-def _invocation_id_da_pendencia(eventos: list[Event], id_confirmacao: str) -> str | None:
-    """invocation_id do evento que pediu a confirmação (usado na retomada, se houver)."""
-    for evento in eventos:
-        for chamada in evento.get_function_calls():
-            if chamada.name == REQUEST_CONFIRMATION and chamada.id == id_confirmacao:
-                return evento.invocation_id
-    return None
-
-
-async def _executar(
-    session_service: SqliteSessionService,
-    runner: Runner,
-    sessao: Session,
-    mensagem: types.Content,
-    invocation_id: str | None = None,
-) -> MensagemResposta:
-    textos: list[str] = []
-    async for evento in runner.run_async(
-        user_id=sessao.user_id,
-        session_id=sessao.id,
-        new_message=mensagem,
-        invocation_id=invocation_id,
-    ):
-        if evento.is_final_response() and evento.content and evento.content.parts:
-            textos.extend(p.text for p in evento.content.parts if p.text)
-
-    # os eventos da rodada só estão gravados depois do run_async
-    atualizada = await buscar_sessao(session_service, runner, sessao.id)
-    pendentes = _confirmacoes_pendentes(atualizada.events) if atualizada else []
-    return MensagemResposta(resposta="\n".join(textos), confirmacoes_pendentes=pendentes)
 
 
 def _nao_encontrada() -> HTTPException:
@@ -128,12 +51,13 @@ async def enviar_mensagem(
     runner: RunnerDep,
     session_service: SessionServiceDep,
 ) -> MensagemResposta:
-    sessao = await buscar_sessao(session_service, runner, session_id)
+    sessao = await servico.buscar_sessao(session_service, runner, session_id)
     if sessao is None:
         raise _nao_encontrada()
 
-    mensagem = types.Content(role="user", parts=[types.Part(text=entrada.texto)])
-    return await _executar(session_service, runner, sessao, mensagem)
+    return await servico.executar(
+        session_service, runner, sessao, servico.mensagem_do_usuario(entrada.texto)
+    )
 
 
 @router.post("/{session_id}/confirmacoes")
@@ -143,35 +67,22 @@ async def responder_confirmacao(
     runner: RunnerDep,
     session_service: SessionServiceDep,
 ) -> MensagemResposta:
-    sessao = await buscar_sessao(session_service, runner, session_id)
+    sessao = await servico.buscar_sessao(session_service, runner, session_id)
     if sessao is None:
         raise _nao_encontrada()
 
     # só vale confirmação pendente nesta sessão; id desconhecido ou já respondido é 409
-    if entrada.id not in {p.id for p in _confirmacoes_pendentes(sessao.events)}:
+    if entrada.id not in {p.id for p in servico.confirmacoes_pendentes(sessao.events)}:
         raise HTTPException(
             status_code=409, detail="Não há confirmação pendente com esse id."
         )
 
-    # a decisão vai ao ADK como FunctionResponse; nada do que o morador escreve a substitui
-    decisao = types.Content(
-        role="user",
-        parts=[
-            types.Part(
-                function_response=types.FunctionResponse(
-                    id=entrada.id,
-                    name=REQUEST_CONFIRMATION,
-                    response={"confirmed": entrada.confirmado},
-                )
-            )
-        ],
-    )
-    return await _executar(
+    return await servico.executar(
         session_service,
         runner,
         sessao,
-        decisao,
-        invocation_id=_invocation_id_da_pendencia(sessao.events, entrada.id),
+        servico.decisao_de_confirmacao(entrada.id, entrada.confirmado),
+        invocation_id=servico.invocation_id_da_pendencia(sessao.events, entrada.id),
     )
 
 
@@ -179,7 +90,7 @@ async def responder_confirmacao(
 async def listar_eventos(
     session_id: str, runner: RunnerDep, session_service: SessionServiceDep
 ) -> list[dict[str, Any]]:
-    sessao = await buscar_sessao(session_service, runner, session_id)
+    sessao = await servico.buscar_sessao(session_service, runner, session_id)
     if sessao is None:
         raise _nao_encontrada()
     return [e.model_dump(mode="json", exclude_none=True) for e in sessao.events]
