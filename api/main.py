@@ -3,6 +3,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 from google.adk import Runner
 from google.adk.sessions.sqlite_session_service import SqliteSessionService
 
@@ -24,7 +25,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     yield
 
 
-app = FastAPI(docs_url="/", lifespan=lifespan)
+app = FastAPI(lifespan=lifespan)
+
+
+@app.get("/", include_in_schema=False)
+def raiz() -> RedirectResponse:
+    """Atalho: quem abre a raiz cai na documentação (Swagger UI) em /docs."""
+    return RedirectResponse(url="/docs")
+
 
 app.include_router(reservas_router)
 app.include_router(visitantes_router)

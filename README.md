@@ -16,7 +16,7 @@ uv run fastapi run
 
 O `fastapi run` sobe sem auto-reload, então a API só reinicia quando você a reinicia, o que é mais previsível para a entrega. Durante o desenvolvimento, `uv run fastapi dev` recarrega a API a cada alteração no código.
 
-- Documentação (Swagger UI): http://127.0.0.1:8000/
+- Documentação (Swagger UI): http://127.0.0.1:8000/docs (a raiz `/` redireciona para ela)
 
 ## Subindo o ADK web
 
