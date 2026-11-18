@@ -1,9 +1,8 @@
-from typing import Annotated, Any
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from google.adk import Runner
-from google.adk.sessions.sqlite_session_service import SqliteSessionService
+from fastapi import APIRouter, HTTPException
 
+from ..dependencies import RunnerDep, SessionServiceDep
 from ..schemas.sessao import (
     ConfirmacaoEntrada,
     MensagemEntrada,
@@ -14,18 +13,6 @@ from ..schemas.sessao import (
 from ..services import sessoes as servico
 
 router = APIRouter(prefix="/sessoes", tags=["sessoes"])
-
-
-def get_runner(request: Request) -> Runner:
-    return request.app.state.runner
-
-
-def get_session_service(request: Request) -> SqliteSessionService:
-    return request.app.state.session_service
-
-
-RunnerDep = Annotated[Runner, Depends(get_runner)]
-SessionServiceDep = Annotated[SqliteSessionService, Depends(get_session_service)]
 
 
 def _nao_encontrada() -> HTTPException:

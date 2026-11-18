@@ -1,16 +1,11 @@
-from typing import Annotated
-
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from sqlalchemy import select
-from sqlalchemy.orm import Session
 
-from db.database import get_session
 from db.models import Reserva
+from ..dependencies import SessionDep
 from ..schemas import ReservaResposta
 
 router = APIRouter(prefix="/apartamentos/{apartamento}/reservas", tags=["reservas"])
-
-SessionDep = Annotated[Session, Depends(get_session)]
 
 
 @router.get("")
