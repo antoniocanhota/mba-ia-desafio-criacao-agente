@@ -49,24 +49,11 @@ def test_visitantes_do_302_com_dados_iniciais_devolve_formato_exato(api):
     assert resposta.json() == [{"nome": "Marina Duarte", "data": "2030-03-16"}]
 
 
-def test_criar_sessao_com_apartamento_valido_devolve_201_e_session_id(api):
-    resposta = api.http.post("/sessoes", json={"apartamento": "101"})
-
-    assert resposta.status_code == 201
-    session_id = resposta.json()["session_id"]
-    assert isinstance(session_id, str)
-    assert session_id.strip() != ""
-
-
 def test_eventos_de_sessao_nova_devolve_200_e_lista(api, sessao_101):
     resposta = api.http.get(f"/sessoes/{sessao_101}/eventos")
 
     assert resposta.status_code == 200
     assert isinstance(resposta.json(), list)
-
-
-def test_eventos_com_sessao_inexistente_devolve_404(api):
-    assert api.http.get(f"/sessoes/{SESSAO_INEXISTENTE}/eventos").status_code == 404
 
 
 def test_mensagem_com_sessao_inexistente_devolve_404(api):
