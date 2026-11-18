@@ -33,9 +33,7 @@ def test_reservas_do_101_com_dados_iniciais_devolve_formato_exato(client):
     resposta = client.get("/apartamentos/101/reservas")
 
     assert resposta.status_code == 200
-    assert resposta.json() == [
-        {"codigo": "RSV-1377", "area": "quadra", "data": "2030-03-09"}
-    ]
+    assert resposta.json() == [{"codigo": "RSV-1377", "area": "quadra", "data": "2030-03-09"}]
 
 
 def test_visitantes_do_302_com_dados_iniciais_devolve_formato_exato(client):
@@ -53,9 +51,7 @@ def test_eventos_de_sessao_nova_devolve_200_e_lista(client, sessao_101):
 
 
 def test_mensagem_com_sessao_inexistente_devolve_404(client):
-    resposta = client.post(
-        f"/sessoes/{SESSAO_INEXISTENTE}/mensagens", json={"texto": "oi"}
-    )
+    resposta = client.post(f"/sessoes/{SESSAO_INEXISTENTE}/mensagens", json={"texto": "oi"})
 
     assert resposta.status_code == 404
 
@@ -79,12 +75,8 @@ def test_confirmacao_com_id_que_nao_esta_pendente_devolve_409(client, sessao_101
 
 
 @pytest.mark.llm
-def test_mensagem_inofensiva_devolve_resposta_e_lista_vazia_de_pendencias(
-    client, sessao_101
-):
-    resposta = client.post(
-        f"/sessoes/{sessao_101}/mensagens", json={"texto": "Olá, tudo bem?"}
-    )
+def test_mensagem_inofensiva_devolve_resposta_e_lista_vazia_de_pendencias(client, sessao_101):
+    resposta = client.post(f"/sessoes/{sessao_101}/mensagens", json={"texto": "Olá, tudo bem?"})
 
     assert resposta.status_code == 200
     corpo = resposta.json()

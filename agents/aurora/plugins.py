@@ -29,7 +29,4 @@ class ExigirApartamento(BasePlugin):
             with SessionLocal() as session:
                 if apartamento_existe(session, str(apartamento)):
                     return None
-        return types.Content(
-            role="model", parts=[types.Part(text=MENSAGEM_APARTAMENTO_INVALIDO)]
-        )
-
+        return types.Content(role="model", parts=[types.Part(text=MENSAGEM_APARTAMENTO_INVALIDO)])

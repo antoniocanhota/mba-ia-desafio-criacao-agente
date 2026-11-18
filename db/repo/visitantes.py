@@ -21,9 +21,7 @@ def listar_visitantes(session: Session, apartamento: str) -> list[Visitante]:
     )
 
 
-def autorizar_visitante(
-    session: Session, apartamento: str, nome: str, data: str
-) -> Visitante:
+def autorizar_visitante(session: Session, apartamento: str, nome: str, data: str) -> Visitante:
     nome = nome.strip()
     if not nome:
         raise DadosInvalidos("Informe o nome do visitante.")
@@ -35,7 +33,5 @@ def autorizar_visitante(
         session,
         Visitante.id,
         "VIS",
-        lambda codigo: Visitante(
-            id=codigo, apartamento=apartamento, nome=nome, data=dia
-        ),
+        lambda codigo: Visitante(id=codigo, apartamento=apartamento, nome=nome, data=dia),
     )

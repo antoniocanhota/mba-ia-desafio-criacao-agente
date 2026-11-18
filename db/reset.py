@@ -49,9 +49,7 @@ def main() -> None:
         session.add_all(Apartamento(**a) for a in apartamentos)
         session.add_all(Area(**a) for a in areas)
         session.flush()
-        session.add_all(
-            Reserva(**r | {"data": date.fromisoformat(r["data"])}) for r in reservas
-        )
+        session.add_all(Reserva(**r | {"data": date.fromisoformat(r["data"])}) for r in reservas)
         for v in visitantes:
             session.add(
                 Visitante(

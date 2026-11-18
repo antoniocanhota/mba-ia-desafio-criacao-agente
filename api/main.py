@@ -9,6 +9,7 @@ from google.adk.sessions.sqlite_session_service import SqliteSessionService
 
 from agents.aurora.agent import app as aurora_app
 from db.database import criar_tabelas
+
 from .routers.reservas import router as reservas_router
 from .routers.sessoes import router as sessoes_router
 from .routers.visitantes import router as visitantes_router
@@ -19,9 +20,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     criar_tabelas()
     # mesmo App do adk web; sessões em arquivo próprio, separado do banco de reservas
     app.state.session_service = SqliteSessionService(os.environ["SESSIONS_DB_PATH"])
-    app.state.runner = Runner(
-        app=aurora_app, session_service=app.state.session_service
-    )
+    app.state.runner = Runner(app=aurora_app, session_service=app.state.session_service)
     yield
 
 

@@ -1,4 +1,7 @@
-"""Fixtures compartilhadas: sobem a API real com bancos temporários (nunca tocam banco.db/sessoes.db)."""
+"""Fixtures compartilhadas: sobem a API real com bancos temporários.
+
+Nunca tocam banco.db/sessoes.db.
+"""
 
 import os
 import signal
@@ -48,7 +51,10 @@ class Servidor:
         self.parar()
         subprocess.run(
             ["uv", "run", "python", "-m", "db.reset", "--sessoes"],
-            cwd=RAIZ, env=self.env, check=True, capture_output=True,
+            cwd=RAIZ,
+            env=self.env,
+            check=True,
+            capture_output=True,
         )
         if estava_no_ar:
             self.iniciar()
@@ -56,8 +62,11 @@ class Servidor:
     def iniciar(self) -> None:
         self.proc = subprocess.Popen(
             ["uv", "run", "fastapi", "run", "--port", str(self.porta)],
-            cwd=RAIZ, env=self.env, stdout=self.log.open("ab"),
-            stderr=subprocess.STDOUT, start_new_session=True,
+            cwd=RAIZ,
+            env=self.env,
+            stdout=self.log.open("ab"),
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
         )
         limite = time.monotonic() + 60
         while time.monotonic() < limite:

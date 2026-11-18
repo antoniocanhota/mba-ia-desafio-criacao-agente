@@ -15,8 +15,10 @@ from ..services import sessoes as servico
 
 router = APIRouter(prefix="/sessoes", tags=["sessoes"])
 
-NAO_ENCONTRADA = {404: {"model": ErroResposta, "description": "Sessão não encontrada."}}
-SEM_PENDENCIA = {
+NAO_ENCONTRADA: dict[int | str, dict[str, Any]] = {
+    404: {"model": ErroResposta, "description": "Sessão não encontrada."}
+}
+SEM_PENDENCIA: dict[int | str, dict[str, Any]] = {
     409: {
         "model": ErroResposta,
         "description": "Não há confirmação pendente com esse id (inexistente ou já respondida).",
@@ -57,9 +59,7 @@ async def responder_confirmacao(
 ) -> MensagemResposta:
     # só vale confirmação pendente nesta sessão; id desconhecido ou já respondido é 409
     if entrada.id not in {p.id for p in servico.confirmacoes_pendentes(sessao.events)}:
-        raise HTTPException(
-            status_code=409, detail="Não há confirmação pendente com esse id."
-        )
+        raise HTTPException(status_code=409, detail="Não há confirmação pendente com esse id.")
 
     return await servico.executar(
         session_service,
