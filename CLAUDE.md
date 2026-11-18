@@ -1,5 +1,17 @@
 # CLAUDE.md
 
+## Visão geral
+
+Agente em Google ADK exposto por API FastAPI. Python gerenciado com `uv`.
+- `agents/`: agentes ADK · `api/`: rotas, schemas, services · `db/`: banco · `dados/`: dados de entrada · `tests/`: suíte pytest
+
+## Comandos
+
+- Subir a API: `uv run fastapi dev`
+- Setup: `cp .env.example .env` e preencher `GOOGLE_API_KEY`
+- Resetar o banco com os dados em `dados/`: `uv run python -m db.reset`. Se precisar também apagar sessões: `uv run python -m db.reset --sessoes`
+- Rodar testes: `uv run pytest`. Sem LLM: `uv run pytest -m "not llm"`.
+
 ## Google ADK: consulte o Context7 antes de implementar
 
 Ao criar ou alterar agentes, ou qualquer funcionalidade relacionada ao Google ADK (Agent Development Kit), use o **Context7 via MCP** para buscar referências atualizadas. Não confie apenas na memória: a API do ADK muda com frequência.
@@ -37,14 +49,17 @@ Ao criar ou alterar código Python, rode os três antes de considerar a tarefa c
 
 Ao escrever ou alterar testes, siga a skill `python-testing-patterns`. Em `tests/test_api.py`, aplique também a skill `fastapi`.
 
-**Não parametrize testes** (`@pytest.mark.parametrize`): escreva um teste explícito por caso, mesmo que fiquem parecidos. Cada passo do fluxo do avaliador e cada rota do contrato deve ser legível e falhar isoladamente.
+**Não parametrize testes** (`@pytest.mark.parametrize`): escreva um teste explícito por caso, mesmo que fiquem parecidos. 
 
-- `tests/test_api.py`: um arquivo só, com o "Contrato da API" e, depois, um teste por passo do "Fluxo do avaliador" do `enunciado.canhota.md`, em sequência. Só há testes do que já foi implementado; cada onda acrescenta os dela. Testes que chamam o Gemini levam `@pytest.mark.llm`.
 - Rodar: `uv run pytest` (precisa de `GOOGLE_API_KEY` no `.env`; usa o Gemini real e sobe a API com bancos temporários, sem tocar `banco.db`/`sessoes.db`). Sem LLM: `uv run pytest -m "not llm"`.
 
-Ao implementar uma onda:
+Ao implementar uma funcionalidade:
 
-1. Escreva os testes dos passos do "Fluxo do avaliador" que a onda entrega (um teste por passo, na ordem do fluxo) e ajuste o contrato em `tests/test_api.py`, se a onda mexer nele.
+1. Escreva os testes da funcionalidade em tests/test_api.py (um teste por passo do fluxo, em sequência) e atualize o contrato da API no mesmo arquivo, se ela o alterar.
 2. Rode as checagens de "Qualidade de código" (`ruff check --fix`, `ruff format`, `ty check`); todas devem passar.
-3. **Rode `uv run pytest` antes de considerar a onda concluída.** A suíte inteira deve passar.
-4. Se algum teste falhar, tente corrigir o **código** e rode de novo, no máximo **2 vezes**. Se continuar falhando, **pare e avise o usuário** (quais testes falharam, o erro e o que foi tentado) para ele intervir manualmente. Não enfraqueça, remova nem pule testes para fazê-los passar.
+3. **Rode `uv run pytest` antes de considerar a funcionalidade concluída.** A suíte inteira deve passar.
+4. Se algum teste falhar, tente corrigir o **código** e rode de novo até **2 tentativas de correção**. Se continuar falhando, **pare e avise o usuário** (quais testes falharam, o erro e o que foi tentado) para ele intervir manualmente. Não enfraqueça, remova nem pule testes para fazê-los passar.
+
+## Segurança
+
+Nunca commitar `.env`. `banco.db` e `sessoes.db` são dados locais: não apagar nem alterar sem avisar.
