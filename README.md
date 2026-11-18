@@ -11,10 +11,10 @@ uv sync
 Com o `.env` preenchido (ver [Dados](#dados)) e o banco carregado (`uv run python -m db.reset`):
 
 ```bash
-uv run fastapi run api/main.py
+uv run fastapi run
 ```
 
-O `fastapi run` sobe sem auto-reload, então a API só reinicia quando você a reinicia, o que é mais previsível para a entrega. Durante o desenvolvimento, `uv run fastapi dev api/main.py` recarrega a API a cada alteração no código.
+O `fastapi run` sobe sem auto-reload, então a API só reinicia quando você a reinicia, o que é mais previsível para a entrega. Durante o desenvolvimento, `uv run fastapi dev` recarrega a API a cada alteração no código.
 
 - Documentação (Swagger UI): http://127.0.0.1:8000/
 

@@ -60,7 +60,7 @@ class Servidor:
 
     def iniciar(self) -> None:
         self.proc = subprocess.Popen(
-            ["uv", "run", "fastapi", "run", "api/main.py", "--port", str(self.porta)],
+            ["uv", "run", "fastapi", "run", "--port", str(self.porta)],
             cwd=RAIZ, env=self.env, stdout=self.log.open("ab"),
             stderr=subprocess.STDOUT, start_new_session=True,
         )
