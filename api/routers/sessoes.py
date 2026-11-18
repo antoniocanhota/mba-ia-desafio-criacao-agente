@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 from ..dependencies import RunnerDep, SessaoDep, SessionServiceDep
 from ..schemas.sessao import (
     ConfirmacaoEntrada,
+    ErroResposta,
     MensagemEntrada,
     MensagemResposta,
     SessaoEntrada,
@@ -13,6 +14,14 @@ from ..schemas.sessao import (
 from ..services import sessoes as servico
 
 router = APIRouter(prefix="/sessoes", tags=["sessoes"])
+
+NAO_ENCONTRADA = {404: {"model": ErroResposta, "description": "Sessão não encontrada."}}
+SEM_PENDENCIA = {
+    409: {
+        "model": ErroResposta,
+        "description": "Não há confirmação pendente com esse id (inexistente ou já respondida).",
+    }
+}
 
 
 @router.post("", status_code=201)
@@ -27,7 +36,7 @@ async def criar_sessao(
     return SessaoResposta(session_id=sessao.id)
 
 
-@router.post("/{session_id}/mensagens")
+@router.post("/{session_id}/mensagens", responses=NAO_ENCONTRADA)
 async def enviar_mensagem(
     sessao: SessaoDep,
     entrada: MensagemEntrada,
@@ -39,7 +48,7 @@ async def enviar_mensagem(
     )
 
 
-@router.post("/{session_id}/confirmacoes")
+@router.post("/{session_id}/confirmacoes", responses={**NAO_ENCONTRADA, **SEM_PENDENCIA})
 async def responder_confirmacao(
     sessao: SessaoDep,
     entrada: ConfirmacaoEntrada,
@@ -61,6 +70,6 @@ async def responder_confirmacao(
     )
 
 
-@router.get("/{session_id}/eventos")
+@router.get("/{session_id}/eventos", responses=NAO_ENCONTRADA)
 async def listar_eventos(sessao: SessaoDep) -> list[dict[str, Any]]:
     return [e.model_dump(mode="json", exclude_none=True) for e in sessao.events]

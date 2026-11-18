@@ -29,3 +29,7 @@ class ConfirmacaoPendente(BaseModel):
 class MensagemResposta(BaseModel):
     resposta: str
     confirmacoes_pendentes: list[ConfirmacaoPendente]
+
+
+class ErroResposta(BaseModel):
+    detail: str
