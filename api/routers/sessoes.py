@@ -2,7 +2,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from ..dependencies import RunnerDep, SessionServiceDep
+from ..dependencies import RunnerDep, SessaoDep, SessionServiceDep
 from ..schemas.sessao import (
     ConfirmacaoEntrada,
     MensagemEntrada,
@@ -13,10 +13,6 @@ from ..schemas.sessao import (
 from ..services import sessoes as servico
 
 router = APIRouter(prefix="/sessoes", tags=["sessoes"])
-
-
-def _nao_encontrada() -> HTTPException:
-    return HTTPException(status_code=404, detail="Sessão não encontrada.")
 
 
 @router.post("", status_code=201)
@@ -33,15 +29,11 @@ async def criar_sessao(
 
 @router.post("/{session_id}/mensagens")
 async def enviar_mensagem(
-    session_id: str,
+    sessao: SessaoDep,
     entrada: MensagemEntrada,
     runner: RunnerDep,
     session_service: SessionServiceDep,
 ) -> MensagemResposta:
-    sessao = await servico.buscar_sessao(session_service, runner, session_id)
-    if sessao is None:
-        raise _nao_encontrada()
-
     return await servico.executar(
         session_service, runner, sessao, servico.mensagem_do_usuario(entrada.texto)
     )
@@ -49,15 +41,11 @@ async def enviar_mensagem(
 
 @router.post("/{session_id}/confirmacoes")
 async def responder_confirmacao(
-    session_id: str,
+    sessao: SessaoDep,
     entrada: ConfirmacaoEntrada,
     runner: RunnerDep,
     session_service: SessionServiceDep,
 ) -> MensagemResposta:
-    sessao = await servico.buscar_sessao(session_service, runner, session_id)
-    if sessao is None:
-        raise _nao_encontrada()
-
     # só vale confirmação pendente nesta sessão; id desconhecido ou já respondido é 409
     if entrada.id not in {p.id for p in servico.confirmacoes_pendentes(sessao.events)}:
         raise HTTPException(
@@ -74,10 +62,5 @@ async def responder_confirmacao(
 
 
 @router.get("/{session_id}/eventos")
-async def listar_eventos(
-    session_id: str, runner: RunnerDep, session_service: SessionServiceDep
-) -> list[dict[str, Any]]:
-    sessao = await servico.buscar_sessao(session_service, runner, session_id)
-    if sessao is None:
-        raise _nao_encontrada()
+async def listar_eventos(sessao: SessaoDep) -> list[dict[str, Any]]:
     return [e.model_dump(mode="json", exclude_none=True) for e in sessao.events]
