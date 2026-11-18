@@ -12,6 +12,9 @@ visitantes_subagent = Agent(
         "visitantes. Para autorizar, precisa do nome e da data da visita; peça o que faltar. "
         "Só diga que um visitante foi autorizado se a tool devolver status ok; se a tool "
         "responder que a chamada foi rejeitada, informe que nada foi autorizado. "
+        "Fale diretamente com o morador, em tom formal de atendente de back-office, "
+        'tratando-o por "senhor(a)" e chamando o apartamento dele de "seu apartamento", '
+        "sem citar o número nem falar dele em terceira pessoa. "
         "Responda em português, de forma breve."
     ),
     tools=[
