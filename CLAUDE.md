@@ -21,6 +21,18 @@ Aplica-se a: criação de agentes e sub-agentes, tools, callbacks, plugins, sess
 
 Ao criar ou alterar a API (`api/`) ou seus testes (`tests/test_api.py`), invoque a skill `fastapi` **antes** de escrever o código, para seguir as boas práticas e convenções atuais (rotas, modelos Pydantic, dependências, streaming/SSE).
 
+## Qualidade de código (lint, formatação, imports, tipos)
+
+Ferramentas (dev dependencies, configuradas no `pyproject.toml`): **Ruff** (lint, formatação e ordenação de imports) e **ty** (checagem de tipos).
+
+Comandos, sempre via `uv run`:
+
+- `uv run ruff check --fix`: lint e ordenação de imports (aplica as correções automáticas).
+- `uv run ruff format`: formatação.
+- `uv run ty check`: checagem de tipos.
+
+Ao criar ou alterar código Python, rode os três antes de considerar a tarefa concluída (e antes dos testes). Para só verificar, sem alterar arquivos: `uv run ruff check`, `uv run ruff format --check` e `uv run ty check`. Corrija o **código**; não desative regras nem use `# noqa`/`# type: ignore` para silenciar um problema sem avisar o usuário.
+
 ## Testes automatizados
 
 Ao escrever ou alterar testes, siga a skill `python-testing-patterns`. Em `tests/test_api.py`, aplique também a skill `fastapi`.
@@ -33,5 +45,6 @@ Ao escrever ou alterar testes, siga a skill `python-testing-patterns`. Em `tests
 Ao implementar uma onda:
 
 1. Escreva os testes dos passos do "Fluxo do avaliador" que a onda entrega (um teste por passo, na ordem do fluxo) e ajuste o contrato em `tests/test_api.py`, se a onda mexer nele.
-2. **Rode `uv run pytest` antes de considerar a onda concluída.** A suíte inteira deve passar.
-3. Se algum teste falhar, tente corrigir o **código** e rode de novo, no máximo **2 vezes**. Se continuar falhando, **pare e avise o usuário** (quais testes falharam, o erro e o que foi tentado) para ele intervir manualmente. Não enfraqueça, remova nem pule testes para fazê-los passar.
+2. Rode as checagens de "Qualidade de código" (`ruff check --fix`, `ruff format`, `ty check`); todas devem passar.
+3. **Rode `uv run pytest` antes de considerar a onda concluída.** A suíte inteira deve passar.
+4. Se algum teste falhar, tente corrigir o **código** e rode de novo, no máximo **2 vezes**. Se continuar falhando, **pare e avise o usuário** (quais testes falharam, o erro e o que foi tentado) para ele intervir manualmente. Não enfraqueça, remova nem pule testes para fazê-los passar.

@@ -25,6 +25,8 @@ build-backend = "uv_build"
 dev = [
     "httpx>=0.28.1",
     "pytest>=9.2.0",
+    "ruff>=0.17.5",
+    "ty>=0.0.106",
 ]
 
 [tool.fastapi]
@@ -37,3 +39,23 @@ addopts = ["--strict-markers", "--tb=short", "-ra"]
 markers = [
     "llm: chama o Gemini real (precisa de GOOGLE_API_KEY; consome cota)",
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E", "F",  # pycodestyle + pyflakes
+    "I",       # ordenação de imports
+    "UP",      # pyupgrade
+    "B",       # bugbear
+    "SIM",     # simplificações
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["agents", "api", "db"]
+
+[tool.ty.environment]
+python = ".venv"
+root = ["."]
