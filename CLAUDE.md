@@ -23,7 +23,7 @@ Ao criar ou alterar a API (`api/`) ou seus testes (`tests/test_api.py`), invoque
 
 ## Testes automatizados
 
-Ao escrever ou alterar testes, siga a skill `python-testing-patterns` (pytest, fixtures, markers, padrão AAA, nomes `test_<unidade>_<cenário>_<esperado>`). Em `tests/test_api.py`, aplique também a skill `fastapi` (ex.: `TestClient`, dependências, respostas da API).
+Ao escrever ou alterar testes, siga a skill `python-testing-patterns`. Em `tests/test_api.py`, aplique também a skill `fastapi`.
 
 **Não parametrize testes** (`@pytest.mark.parametrize`): escreva um teste explícito por caso, mesmo que fiquem parecidos. Cada passo do fluxo do avaliador e cada rota do contrato deve ser legível e falhar isoladamente.
 
