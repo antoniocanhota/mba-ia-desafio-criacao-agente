@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, HTTPException, Path, Request
 from google.adk import Runner
 from google.adk.sessions import Session as SessaoAdk
 from google.adk.sessions.sqlite_session_service import SqliteSessionService
@@ -36,3 +36,5 @@ SessionDep = Annotated[Session, Depends(get_session)]
 RunnerDep = Annotated[Runner, Depends(get_runner)]
 SessionServiceDep = Annotated[SqliteSessionService, Depends(get_session_service)]
 SessaoDep = Annotated[SessaoAdk, Depends(get_sessao)]
+
+ApartamentoPath = Annotated[str, Path(min_length=1, description="Número do apartamento.")]

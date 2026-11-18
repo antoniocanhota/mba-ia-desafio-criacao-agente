@@ -1,10 +1,12 @@
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SessaoEntrada(BaseModel):
-    apartamento: str
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    apartamento: str = Field(min_length=1)
 
 
 class SessaoResposta(BaseModel):
@@ -12,7 +14,9 @@ class SessaoResposta(BaseModel):
 
 
 class MensagemEntrada(BaseModel):
-    texto: str
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    texto: str = Field(min_length=1)
 
 
 class ConfirmacaoEntrada(BaseModel):

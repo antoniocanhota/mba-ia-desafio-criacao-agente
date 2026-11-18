@@ -37,7 +37,9 @@ def test_reservas_do_101_com_dados_iniciais_devolve_formato_exato(api):
     resposta = api.http.get("/apartamentos/101/reservas")
 
     assert resposta.status_code == 200
-    assert resposta.json() == [{"codigo": "RSV-1377", "area": "quadra", "data": "2030-03-09"}]
+    assert resposta.json() == [
+        {"codigo": "RSV-1377", "area": "quadra", "data": "2030-03-09"}
+    ]
 
 
 def test_visitantes_do_302_com_dados_iniciais_devolve_formato_exato(api):
@@ -68,7 +70,9 @@ def test_eventos_com_sessao_inexistente_devolve_404(api):
 
 
 def test_mensagem_com_sessao_inexistente_devolve_404(api):
-    resposta = api.http.post(f"/sessoes/{SESSAO_INEXISTENTE}/mensagens", json={"texto": "oi"})
+    resposta = api.http.post(
+        f"/sessoes/{SESSAO_INEXISTENTE}/mensagens", json={"texto": "oi"}
+    )
 
     assert resposta.status_code == 404
 
@@ -86,7 +90,9 @@ def test_confirmacao_com_id_que_nao_esta_pendente_devolve_409(api, sessao_101):
 
 
 @pytest.mark.llm
-def test_mensagem_inofensiva_devolve_resposta_e_lista_vazia_de_pendencias(api, sessao_101):
+def test_mensagem_inofensiva_devolve_resposta_e_lista_vazia_de_pendencias(
+    api, sessao_101
+):
     corpo = api.enviar(sessao_101, "Olá, tudo bem?")
 
     assert isinstance(corpo["resposta"], str)
