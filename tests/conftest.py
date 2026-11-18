@@ -17,14 +17,10 @@ RAIZ = Path(__file__).resolve().parent.parent
 load_dotenv(RAIZ / ".env")
 
 
-def pytest_collection_modifyitems(config, items):
-    """Testes marcados com `llm` são pulados quando não há GOOGLE_API_KEY."""
-    if os.environ.get("GOOGLE_API_KEY"):
-        return
-    pular = pytest.mark.skip(reason="GOOGLE_API_KEY ausente (.env)")
-    for item in items:
-        if "llm" in item.keywords:
-            item.add_marker(pular)
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    """Pula os testes marcados com `llm` quando não há GOOGLE_API_KEY."""
+    if item.get_closest_marker("llm") and not os.environ.get("GOOGLE_API_KEY"):
+        pytest.skip("GOOGLE_API_KEY ausente (.env)")
 
 
 def _porta_livre() -> int:
@@ -142,6 +138,12 @@ def servidor(tmp_path_factory) -> Generator[Servidor, None, None]:
 @pytest.fixture(scope="session")
 def api(servidor) -> Api:
     return Api(servidor)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def dados_iniciais(servidor: Servidor) -> None:
+    """Todo módulo de teste parte dos dados de `dados/` e de sessões vazias."""
+    servidor.restaurar()
 
 
 @pytest.fixture

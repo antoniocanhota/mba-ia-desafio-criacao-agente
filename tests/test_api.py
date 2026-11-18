@@ -13,11 +13,6 @@ import pytest
 SESSAO_INEXISTENTE = "sessao-inexistente"
 
 
-@pytest.fixture(scope="module", autouse=True)
-def dados_iniciais(servidor):
-    servidor.restaurar()
-
-
 @pytest.fixture(scope="module")
 def resposta_s1(api):
     """Passo 2: resposta da criação da sessão S1 do apartamento 101."""
