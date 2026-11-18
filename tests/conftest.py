@@ -1,6 +1,5 @@
 """Fixtures compartilhadas: sobem a API real com bancos temporários (nunca tocam banco.db/sessoes.db)."""
 
-import json
 import os
 import signal
 import socket
@@ -87,45 +86,6 @@ class Servidor:
         self.iniciar()
 
 
-class Api:
-    """Atalhos HTTP para a API sob teste."""
-
-    def __init__(self, servidor: Servidor):
-        self.servidor = servidor
-        self.http = httpx.Client(base_url=servidor.url, timeout=180)  # LLM é lento
-
-    def criar_sessao(self, apartamento: str) -> str:
-        resposta = self.http.post("/sessoes", json={"apartamento": apartamento})
-        assert resposta.status_code == 201, resposta.text
-        return resposta.json()["session_id"]
-
-    def enviar(self, session_id: str, texto: str) -> dict:
-        resposta = self.http.post(f"/sessoes/{session_id}/mensagens", json={"texto": texto})
-        assert resposta.status_code == 200, resposta.text
-        return resposta.json()
-
-    def confirmar(self, session_id: str, id_confirmacao: str, confirmado: bool) -> httpx.Response:
-        return self.http.post(
-            f"/sessoes/{session_id}/confirmacoes",
-            json={"id": id_confirmacao, "confirmado": confirmado},
-        )
-
-    def eventos(self, session_id: str) -> list[dict]:
-        resposta = self.http.get(f"/sessoes/{session_id}/eventos")
-        assert resposta.status_code == 200, resposta.text
-        return resposta.json()
-
-    def eventos_como_texto(self, session_id: str) -> str:
-        """Todos os eventos serializados, para procurar textos que não podem aparecer."""
-        return json.dumps(self.eventos(session_id), ensure_ascii=False)
-
-    def reservas(self, apartamento: str) -> list[dict]:
-        return self.http.get(f"/apartamentos/{apartamento}/reservas").json()
-
-    def visitantes(self, apartamento: str) -> list[dict]:
-        return self.http.get(f"/apartamentos/{apartamento}/visitantes").json()
-
-
 @pytest.fixture(scope="session")
 def servidor(tmp_path_factory) -> Generator[Servidor, None, None]:
     servidor = Servidor(tmp_path_factory.mktemp("aurora"))
@@ -136,8 +96,9 @@ def servidor(tmp_path_factory) -> Generator[Servidor, None, None]:
 
 
 @pytest.fixture(scope="session")
-def api(servidor) -> Api:
-    return Api(servidor)
+def client(servidor: Servidor) -> Generator[httpx.Client, None, None]:
+    with httpx.Client(base_url=servidor.url, timeout=180) as client:  # LLM é lento
+        yield client
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -147,6 +108,8 @@ def dados_iniciais(servidor: Servidor) -> None:
 
 
 @pytest.fixture
-def sessao_101(api) -> str:
+def sessao_101(client: httpx.Client) -> str:
     """Sessão nova do apartamento 101, isolada por teste."""
-    return api.criar_sessao("101")
+    resposta = client.post("/sessoes", json={"apartamento": "101"})
+    assert resposta.status_code == 201, resposta.text
+    return resposta.json()["session_id"]
