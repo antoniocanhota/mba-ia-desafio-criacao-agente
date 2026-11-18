@@ -2,15 +2,18 @@
 
 ## Visão geral
 
-Agente em Google ADK exposto por API FastAPI. Python gerenciado com `uv`.
+Assistente virtual do Residencial Aurora: agente em Google ADK (`agents/aurora`) exposto por API FastAPI. Python gerenciado com `uv`. Instalação, `.env`, rotas e detalhes de dados estão no `README.md`.
+
 - `agents/`: agentes ADK · `api/`: rotas, schemas, services · `db/`: banco · `dados/`: dados de entrada · `tests/`: suíte pytest
 
 ## Comandos
 
-- Subir a API: `uv run fastapi dev`
-- Setup: `cp .env.example .env` e preencher `GOOGLE_API_KEY`
-- Resetar o banco com os dados em `dados/`: `uv run python -m db.reset`. Se precisar também apagar sessões: `uv run python -m db.reset --sessoes`
-- Rodar testes: `uv run pytest`. Sem LLM: `uv run pytest -m "not llm"`.
+Instalação, `.env` e reset do banco estão no README. Resumo:
+
+- Subir a API (dev): `uv run fastapi dev`
+- ADK web: `PYTHONPATH=. uv run adk web agents --port 8001` (a 8000 é da API)
+- Reset do banco: `uv run python -m db.reset` (apaga e recarrega dados locais; só com autorização). `--sessoes` apaga também conversas e confirmações pendentes.
+- Testes: ver "Testes automatizados".
 
 ## Google ADK: consulte o Context7 antes de implementar
 
@@ -49,17 +52,18 @@ Ao criar ou alterar código Python, rode os três antes de considerar a tarefa c
 
 Ao escrever ou alterar testes, siga a skill `python-testing-patterns`. Em `tests/test_api.py`, aplique também a skill `fastapi`.
 
-**Não parametrize testes** (`@pytest.mark.parametrize`): escreva um teste explícito por caso, mesmo que fiquem parecidos. 
+**Não parametrize testes** (`@pytest.mark.parametrize`): escreva um teste explícito por caso, mesmo que fiquem parecidos. Cada caso deve ser legível e falhar isoladamente.
 
-- Rodar: `uv run pytest` (precisa de `GOOGLE_API_KEY` no `.env`; usa o Gemini real e sobe a API com bancos temporários, sem tocar `banco.db`/`sessoes.db`). Sem LLM: `uv run pytest -m "not llm"`.
+- Suíte completa: `uv run pytest`. Precisa de `GOOGLE_API_KEY` no `.env`, usa o Gemini real (consome cota) e sobe a API com bancos temporários, sem tocar `banco.db`/`sessoes.db`.
+- Durante a iteração: `uv run pytest -m "not llm"`. Testes que chamam o Gemini levam `@pytest.mark.llm`.
 
 Ao implementar uma funcionalidade:
 
-1. Escreva os testes da funcionalidade em tests/test_api.py (um teste por passo do fluxo, em sequência) e atualize o contrato da API no mesmo arquivo, se ela o alterar.
+1. Escreva os testes da funcionalidade em `tests/test_api.py` (um teste por comportamento ou rota entregue) e atualize o contrato da API no mesmo arquivo, se ela o alterar. Se mudar rotas ou schemas, atualize também a seção "Sessões e conversas" do `README.md`.
 2. Rode as checagens de "Qualidade de código" (`ruff check --fix`, `ruff format`, `ty check`); todas devem passar.
 3. **Rode `uv run pytest` antes de considerar a funcionalidade concluída.** A suíte inteira deve passar.
-4. Se algum teste falhar, tente corrigir o **código** e rode de novo até **2 tentativas de correção**. Se continuar falhando, **pare e avise o usuário** (quais testes falharam, o erro e o que foi tentado) para ele intervir manualmente. Não enfraqueça, remova nem pule testes para fazê-los passar.
+4. Se algum teste falhar, tente corrigir o **código** e rode de novo, até **2 tentativas de correção**. Se continuar falhando, **pare e avise o usuário** (quais testes falharam, o erro e o que foi tentado) para ele intervir manualmente. Não enfraqueça, remova nem pule testes para fazê-los passar.
 
 ## Segurança
 
-Nunca commitar `.env`. `banco.db` e `sessoes.db` são dados locais: não apagar nem alterar sem avisar.
+Nunca commitar `.env`. `banco.db` e `sessoes.db` são dados locais: não apagar nem alterar sem avisar (inclui rodar `db.reset`).

@@ -1,5 +1,9 @@
 # Regra é regra: o assistente virtual do Residencial Aurora
 
+Assistente em português para os moradores do Residencial Aurora, construído com o [Google ADK](https://google.github.io/adk-docs/) e exposto por uma API FastAPI. O agente raiz (`agents/aurora`) delega a subagentes; hoje o de visitantes está implementado, e outros assuntos recebem a resposta de que o assistente ainda não consegue ajudar. As regras do condomínio estão em `dados/regulamento.md`.
+
+Estrutura: `agents/` (agentes ADK), `api/` (rotas, schemas e services), `db/` (banco e script de reset), `dados/` (dados iniciais) e `tests/` (suíte pytest).
+
 ## Instalar as dependências
 
 ```bash
@@ -71,4 +75,16 @@ uv run python -m db.reset --sessoes
 ```bash
 uv run pytest                 # precisa de GOOGLE_API_KEY no .env; usa bancos temporários
 uv run pytest -m "not llm"    # só o que não chama o Gemini
+```
+
+Os testes marcados com `llm` chamam o Gemini real e consomem cota; os demais rodam sem rede. Os testes sobem a API com bancos temporários, então `banco.db` e `sessoes.db` não são alterados.
+
+## Qualidade de código
+
+Antes de commitar, rode (todos via `uv`):
+
+```bash
+uv run ruff check --fix   # lint e ordenação de imports
+uv run ruff format        # formatação
+uv run ty check           # checagem de tipos
 ```
