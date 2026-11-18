@@ -67,7 +67,7 @@ class Servidor:
         limite = time.monotonic() + 60
         while time.monotonic() < limite:
             try:
-                if httpx.get(f"{self.url}/apartamentos/101/reservas", timeout=2).status_code == 200:
+                if httpx.get(f"{self.url}/health", timeout=2).status_code == 200:
                     return
             except httpx.HTTPError:
                 time.sleep(0.5)

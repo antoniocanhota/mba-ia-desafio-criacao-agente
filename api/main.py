@@ -28,6 +28,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 app = FastAPI(lifespan=lifespan)
 
 
+@app.get("/health", tags=["saúde"])
+def health() -> dict[str, str]:
+    """Prontidão: responde 200 quando a API está no ar (não consulta banco nem LLM)."""
+    return {"status": "ok"}
+
+
 @app.get("/", include_in_schema=False)
 def raiz() -> RedirectResponse:
     """Atalho: quem abre a raiz cai na documentação (Swagger UI) em /docs."""
