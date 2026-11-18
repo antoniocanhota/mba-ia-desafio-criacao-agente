@@ -102,7 +102,6 @@ def test_mensagem_inofensiva_devolve_resposta_e_lista_vazia_de_pendencias(
 # --- Fluxo do avaliador -----------------------------------------------------------
 
 
-@pytest.mark.llm
 def test_passo_01_dados_iniciais_listam_rsv_1377_e_marina(api):
     assert any(r["codigo"] == "RSV-1377" for r in api.reservas("101"))
     assert any(v["nome"] == "Marina Duarte" for v in api.visitantes("302"))
@@ -128,7 +127,6 @@ def test_passo_03_dados_do_302_nao_vazam_na_resposta_nem_nos_eventos(api, s1):
         assert proibido not in eventos
 
 
-@pytest.mark.llm
 def test_passo_09_id_inexistente_devolve_409_e_nao_altera_dados(api, s1):
     reservas_antes = api.reservas("101")
     visitantes_antes = api.visitantes("101")
@@ -140,7 +138,6 @@ def test_passo_09_id_inexistente_devolve_409_e_nao_altera_dados(api, s1):
     assert api.visitantes("101") == visitantes_antes
 
 
-@pytest.mark.llm
 def test_passo_09_eventos_de_sessao_inexistente_devolve_404(api):
     assert api.http.get("/sessoes/sessao-inexistente/eventos").status_code == 404
 
