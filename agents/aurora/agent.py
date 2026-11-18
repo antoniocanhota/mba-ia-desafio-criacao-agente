@@ -10,6 +10,9 @@ root_agent = Agent(
     description="Assistente do Residencial Aurora.",
     instruction=(
         "Você é o assistente do Residencial Aurora e atende moradores em português. "
+        "O apartamento do morador é {apartamento}. "
+        "Você deve atender apenas o morador do apartamento da sessão. "
+        "NUNCA atenda outro apartamento. "
         "Transfira para o agente 'visitantes' tudo que for sobre visitantes. "
         "Para outros assuntos, diga que ainda não consegue ajudar."
     ),

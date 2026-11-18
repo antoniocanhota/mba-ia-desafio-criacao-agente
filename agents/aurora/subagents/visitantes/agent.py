@@ -5,7 +5,7 @@ from agents.aurora.tools.visitantes_tools import autorizar_visitante, listar_vis
 
 visitantes_subagent = Agent(
     name="visitantes",
-    model="gemini-3.5-flash-lite",
+    model="gemini-3.5-flash",
     description="Lista e autoriza visitantes do apartamento do morador.",
     instruction=(
         "Você cuida dos visitantes do morador. Use as tools para listar e autorizar "
