@@ -8,8 +8,6 @@ from google.adk.sessions.sqlite_session_service import SqliteSessionService
 
 from agents.aurora.agent import app as aurora_app
 from db.database import criar_tabelas
-from .routers.apartamentos import router as apartamentos_router
-from .routers.areas import router as areas_router
 from .routers.reservas import router as reservas_router
 from .routers.sessoes import router as sessoes_router
 from .routers.visitantes import router as visitantes_router
@@ -28,8 +26,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
 app = FastAPI(docs_url="/", lifespan=lifespan)
 
-app.include_router(apartamentos_router)
-app.include_router(areas_router)
 app.include_router(reservas_router)
 app.include_router(visitantes_router)
 app.include_router(sessoes_router)
