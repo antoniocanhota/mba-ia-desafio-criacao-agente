@@ -118,23 +118,30 @@ def test_passo_03_dados_do_302_nao_vazam_na_resposta_nem_nos_eventos(client, s1)
     resposta = client.post(f"/sessoes/{s1}/mensagens", json={"texto": pergunta})
 
     assert resposta.status_code == 200
-    eventos = client.get(f"/sessoes/{s1}/eventos").text
+    eventos = client.get(f"/sessoes/{s1}/eventos")
+    assert eventos.status_code == 200
     for proibido in ("RSV-4821", "Marina Duarte"):
         assert proibido not in resposta.json()["resposta"]
-        assert proibido not in eventos
+        assert proibido not in eventos.text
 
 
 def test_passo_09_id_inexistente_devolve_409_e_nao_altera_dados(client, s1):
-    reservas_antes = client.get("/apartamentos/101/reservas").json()
-    visitantes_antes = client.get("/apartamentos/101/visitantes").json()
+    reservas_antes = client.get("/apartamentos/101/reservas")
+    visitantes_antes = client.get("/apartamentos/101/visitantes")
+    assert reservas_antes.status_code == 200
+    assert visitantes_antes.status_code == 200
 
     resposta = client.post(
         f"/sessoes/{s1}/confirmacoes", json={"id": "id-inexistente", "confirmado": True}
     )
 
     assert resposta.status_code == 409
-    assert client.get("/apartamentos/101/reservas").json() == reservas_antes
-    assert client.get("/apartamentos/101/visitantes").json() == visitantes_antes
+    reservas_depois = client.get("/apartamentos/101/reservas")
+    visitantes_depois = client.get("/apartamentos/101/visitantes")
+    assert reservas_depois.status_code == 200
+    assert visitantes_depois.status_code == 200
+    assert reservas_depois.json() == reservas_antes.json()
+    assert visitantes_depois.json() == visitantes_antes.json()
 
 
 def test_passo_09_eventos_de_sessao_inexistente_devolve_404(client):
@@ -201,17 +208,29 @@ def test_passo_11_aprovar_confirmacao_grava_visitante_uma_unica_vez(client, sess
 
 @pytest.mark.llm
 def test_passo_13_reinicio_da_api_mantem_eventos_e_dados(client, servidor, s1):
-    eventos_antes = len(client.get(f"/sessoes/{s1}/eventos").json())
-    reservas_antes = client.get("/apartamentos/101/reservas").json()
-    visitantes_antes = client.get("/apartamentos/302/visitantes").json()
+    eventos_antes = client.get(f"/sessoes/{s1}/eventos")
+    reservas_antes = client.get("/apartamentos/101/reservas")
+    visitantes_antes = client.get("/apartamentos/302/visitantes")
+    assert eventos_antes.status_code == 200
+    assert reservas_antes.status_code == 200
+    assert visitantes_antes.status_code == 200
 
     servidor.reiniciar()
 
-    assert len(client.get(f"/sessoes/{s1}/eventos").json()) == eventos_antes
-    assert client.get("/apartamentos/101/reservas").json() == reservas_antes
-    assert client.get("/apartamentos/302/visitantes").json() == visitantes_antes
+    eventos_depois = client.get(f"/sessoes/{s1}/eventos")
+    reservas_depois = client.get("/apartamentos/101/reservas")
+    visitantes_depois = client.get("/apartamentos/302/visitantes")
+    assert eventos_depois.status_code == 200
+    assert reservas_depois.status_code == 200
+    assert visitantes_depois.status_code == 200
+    assert len(eventos_depois.json()) == len(eventos_antes.json())
+    assert reservas_depois.json() == reservas_antes.json()
+    assert visitantes_depois.json() == visitantes_antes.json()
+
     nova = client.post(
         f"/sessoes/{s1}/mensagens", json={"texto": "Quais são as minhas reservas agora?"}
     )
     assert nova.status_code == 200
-    assert len(client.get(f"/sessoes/{s1}/eventos").json()) > eventos_antes
+    eventos_final = client.get(f"/sessoes/{s1}/eventos")
+    assert eventos_final.status_code == 200
+    assert len(eventos_final.json()) > len(eventos_antes.json())
