@@ -1,0 +1,142 @@
+### Requisições da API do Residencial Aurora
+### Compatível com a extensão REST Client (VS Code) e com o HTTP Client do JetBrains.
+### Suba a API antes: uv run fastapi dev
+
+@baseUrl = http://localhost:8000
+@apartamento = 101
+
+### Prontidão (não consulta banco nem LLM)
+GET {{baseUrl}}/health
+
+### Reservas ativas do apartamento
+GET {{baseUrl}}/apartamentos/{{apartamento}}/reservas
+
+### Visitantes autorizados do apartamento
+GET {{baseUrl}}/apartamentos/{{apartamento}}/visitantes
+
+### Criar sessão de conversa (201). Grava o apartamento no state da sessão.
+# @name criarSessao
+POST {{baseUrl}}/sessoes
+Content-Type: application/json
+
+{
+  "apartamento": "{{apartamento}}"
+}
+
+###
+@sessionId = {{criarSessao.response.body.session_id}}
+
+### Enviar mensagem ao assistente (consome cota do Gemini). 404 se a sessão não existir.
+POST {{baseUrl}}/sessoes/{{sessionId}}/mensagens
+Content-Type: application/json
+
+{
+  "texto": "Olá, tudo bem?"
+}
+
+### Pedir autorização de visitante: devolve uma confirmação pendente e NÃO grava ainda
+# @name pedirVisitante
+POST {{baseUrl}}/sessoes/{{sessionId}}/mensagens
+Content-Type: application/json
+
+{
+  "texto": "Libera a entrada da Joana Ribeiro no dia 2030-04-21."
+}
+
+###
+@confirmacaoId = {{pedirVisitante.response.body.confirmacoes_pendentes[0].id}}
+
+### Aprovar a confirmação pendente: grava o visitante (repetir retorna 409)
+POST {{baseUrl}}/sessoes/{{sessionId}}/confirmacoes
+Content-Type: application/json
+
+{
+  "id": "{{confirmacaoId}}",
+  "confirmado": true
+}
+
+### Negar a confirmação pendente: não grava o visitante
+POST {{baseUrl}}/sessoes/{{sessionId}}/confirmacoes
+Content-Type: application/json
+
+{
+  "id": "{{confirmacaoId}}",
+  "confirmado": false
+}
+
+### Listar as reservas pelo assistente
+POST {{baseUrl}}/sessoes/{{sessionId}}/mensagens
+Content-Type: application/json
+
+{
+  "texto": "Quais são as minhas reservas?"
+}
+
+### Consultar disponibilidade (só "livre" ou "ocupada")
+POST {{baseUrl}}/sessoes/{{sessionId}}/mensagens
+Content-Type: application/json
+
+{
+  "texto": "O salão de festas está livre em 2030-04-20?"
+}
+
+### Reservar área sem taxa (quadra): grava direto, sem confirmação
+POST {{baseUrl}}/sessoes/{{sessionId}}/mensagens
+Content-Type: application/json
+
+{
+  "texto": "Reserve a quadra para 2030-04-06."
+}
+
+### Cancelar a própria reserva: sem confirmação (de outro apartamento: "não encontrei")
+POST {{baseUrl}}/sessoes/{{sessionId}}/mensagens
+Content-Type: application/json
+
+{
+  "texto": "Cancele a minha reserva da quadra do dia 2030-03-09."
+}
+
+### Reservar área com taxa (salão): devolve confirmação pendente e NÃO grava ainda
+# @name pedirReserva
+POST {{baseUrl}}/sessoes/{{sessionId}}/mensagens
+Content-Type: application/json
+
+{
+  "texto": "Reserve o salão de festas para 2030-04-20."
+}
+
+###
+@reservaId = {{pedirReserva.response.body.confirmacoes_pendentes[0].id}}
+
+### Aprovar a reserva pendente: grava uma reserva (repetir retorna 409)
+POST {{baseUrl}}/sessoes/{{sessionId}}/confirmacoes
+Content-Type: application/json
+
+{
+  "id": "{{reservaId}}",
+  "confirmado": true
+}
+
+### Negar a reserva pendente: não grava
+POST {{baseUrl}}/sessoes/{{sessionId}}/confirmacoes
+Content-Type: application/json
+
+{
+  "id": "{{reservaId}}",
+  "confirmado": false
+}
+
+### Confirmação com id inexistente: 409
+POST {{baseUrl}}/sessoes/{{sessionId}}/confirmacoes
+Content-Type: application/json
+
+{
+  "id": "id-inexistente",
+  "confirmado": true
+}
+
+### Eventos da sessão (histórico completo do ADK)
+GET {{baseUrl}}/sessoes/{{sessionId}}/eventos
+
+### Sessão inexistente: 404
+GET {{baseUrl}}/sessoes/sessao-inexistente/eventos
