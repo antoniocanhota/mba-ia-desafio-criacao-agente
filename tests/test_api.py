@@ -319,6 +319,21 @@ def test_passo_11_aprovar_confirmacao_grava_visitante_uma_unica_vez(client, sess
 
 
 @pytest.mark.llm
+def test_passo_12_piscina_aos_domingos_traz_horario_sem_capitulos_de_outros_assuntos(client, s1):
+    texto = "Até que horas a piscina funciona aos domingos?"
+
+    resposta = client.post(f"/sessoes/{s1}/mensagens", json={"texto": texto})
+
+    assert resposta.status_code == 200
+    assert "20h" in resposta.json()["resposta"]
+    eventos = client.get(f"/sessoes/{s1}/eventos")
+    assert eventos.status_code == 200
+    for outro_capitulo in ("Capítulo III", "Capítulo V", "Capítulo VIII"):
+        assert outro_capitulo not in eventos.text
+    assert "Art. 23." not in eventos.text  # texto do capítulo não entra nos eventos
+
+
+@pytest.mark.llm
 def test_passo_13_reinicio_da_api_mantem_eventos_e_dados(client, servidor, s1):
     eventos_antes = client.get(f"/sessoes/{s1}/eventos")
     reservas_antes = client.get("/apartamentos/101/reservas")

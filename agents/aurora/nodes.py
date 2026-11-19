@@ -12,6 +12,7 @@ from google.genai import types
 from pydantic import BaseModel
 
 from agents.aurora.agents.classificador.agent import ClassificadorOutput
+from agents.aurora.agents.regulamento.agent import RegulamentoOutput
 from agents.aurora.agents.reservas.agent import ReservasOutput
 from agents.aurora.agents.visitantes.agent import VisitantesOutput
 from db.database import SessionLocal
@@ -20,12 +21,13 @@ from db.repo.apartamentos import apartamento_existe
 
 APARTAMENTO_INVALIDO = "Apartamento não informado ou inválido."
 FORA_DO_ESCOPO = (
-    "Senhor(a), por enquanto só consigo ajudar com os visitantes e as reservas de seu apartamento."
+    "Senhor(a), por enquanto só consigo ajudar com os visitantes e as reservas de seu apartamento "
+    "e com dúvidas sobre o regulamento."
 )
 SEM_PEDIDO = (
     "Olá, senhor(a). Em que posso ajudar? No momento atendo pedidos sobre os visitantes "
     "de seu apartamento (consultar os autorizados ou autorizar uma entrada) e sobre as "
-    "reservas (salão de festas, churrasqueira e quadra)."
+    "reservas (salão de festas, churrasqueira e quadra), além de dúvidas sobre o regulamento."
 )
 NEGADA = "Senhor(a), a autorização não foi feita e nada foi alterado."
 # janela do histórico que os agentes recebem (mensagens do morador + respostas)
@@ -126,6 +128,11 @@ async def recusar_solicitacao_node() -> Event:
 async def sem_pedido_node() -> Event:
     """Saudação, agradecimento ou texto sem nexo: orienta o que o assistente faz."""
     return _resposta(SEM_PEDIDO)
+
+
+@node
+async def responder_regulamento_node(node_input: RegulamentoOutput) -> Event:
+    return _resposta(node_input.mensagem)
 
 
 @node

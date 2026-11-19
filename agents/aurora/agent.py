@@ -3,6 +3,7 @@ from google.adk.apps import App
 from google.adk.workflow import START
 
 from agents.aurora.agents.classificador.agent import classificador_agent
+from agents.aurora.agents.regulamento.agent import regulamento_agent
 from agents.aurora.agents.reservas.agent import reservas_agent
 from agents.aurora.agents.visitantes.agent import visitantes_agent
 from agents.aurora.nodes import (
@@ -12,6 +13,7 @@ from agents.aurora.nodes import (
     pedir_confirmacao_reserva_node,
     pedir_confirmacao_visitante_node,
     recusar_solicitacao_node,
+    responder_regulamento_node,
     sem_pedido_node,
     triagem_da_solicitacao_node,
     triagem_reserva_node,
@@ -31,6 +33,7 @@ root_agent = Workflow(
                 "sem_pedido": sem_pedido_node,
                 "visitantes": visitantes_agent,
                 "reservas": reservas_agent,
+                "regulamento": regulamento_agent,
             },
         ),
         (
@@ -44,6 +47,7 @@ root_agent = Workflow(
             triagem_reserva_node,
             {"confirmar": pedir_confirmacao_reserva_node},
         ),
+        (regulamento_agent, responder_regulamento_node),
         (pedir_confirmacao_reserva_node, gravar_reserva_confirmada_node),
     ],
 )
