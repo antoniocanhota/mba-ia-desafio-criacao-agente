@@ -1,6 +1,6 @@
 # Regra é regra: o assistente virtual do Residencial Aurora
 
-Assistente em português para os moradores do Residencial Aurora, construído com o [Google ADK](https://google.github.io/adk-docs/) e exposto por uma API FastAPI. O agente raiz (`agents/aurora`) delega a subagentes; hoje o de visitantes está implementado, e outros assuntos recebem a resposta de que o assistente ainda não consegue ajudar. As regras do condomínio estão em `dados/regulamento.md`.
+Assistente em português para os moradores do Residencial Aurora, construído com o [Google ADK](https://google.github.io/adk-docs/) e exposto por uma API FastAPI. O assistente (`agents/aurora`) é um `Workflow` do ADK: um nó de entrada valida o apartamento da sessão, um classificador (LLM) indica o assunto e a triagem (código) encaminha ao especialista. Hoje o de visitantes está implementado; a confirmação e a gravação são feitas por nós de código. Outros assuntos recebem a resposta de que o assistente ainda não consegue ajudar. As regras do condomínio estão em `dados/regulamento.md`.
 
 Estrutura: `agents/` (agentes ADK), `api/` (rotas, schemas e services), `db/` (banco e script de reset), `dados/` (dados iniciais) e `tests/` (suíte pytest).
 
@@ -66,7 +66,7 @@ uv run python -m db.reset --sessoes
 
 - `POST /sessoes` com `{"apartamento": "101"}` cria a sessão (`201`) e grava o apartamento no state.
 - `POST /sessoes/{session_id}/mensagens` com `{"texto": "..."}` devolve `resposta` e `confirmacoes_pendentes`.
-- `POST /sessoes/{session_id}/confirmacoes` com `{"id": "...", "confirmado": true|false}` responde uma confirmação pendente (mesmo formato da rota de mensagens). O `id` precisa estar em `confirmacoes_pendentes` da sessão; qualquer outro, inclusive já respondido, devolve `409` sem executar nada. A decisão volta ao ADK como `FunctionResponse` de `adk_request_confirmation` (ver [Remote confirmation](https://google.github.io/adk-docs/tools-custom/confirmation)), nunca por texto da conversa.
+- `POST /sessoes/{session_id}/confirmacoes` com `{"id": "...", "confirmado": true|false}` responde uma confirmação pendente (mesmo formato da rota de mensagens). O `id` precisa estar em `confirmacoes_pendentes` da sessão; qualquer outro, inclusive já respondido, devolve `409` sem executar nada. A decisão volta ao ADK como `FunctionResponse` de `adk_request_input` (o `RequestInput` do nó de confirmação do workflow), nunca por texto da conversa.
 - `GET /sessoes/{session_id}/eventos` lista todos os eventos da sessão.
 - Sessão inexistente devolve `404` nas rotas com `{session_id}`.
 

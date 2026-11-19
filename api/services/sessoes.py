@@ -8,7 +8,7 @@ from google.genai import types
 
 from ..schemas.sessao import ConfirmacaoPendente, MensagemResposta
 
-REQUEST_CONFIRMATION = "adk_request_confirmation"
+REQUEST_INPUT = "adk_request_input"
 
 
 async def buscar_sessao(
@@ -31,33 +31,25 @@ async def buscar_sessao(
 
 
 def confirmacoes_pendentes(eventos: list[Event]) -> list[ConfirmacaoPendente]:
-    """Chamadas `adk_request_confirmation` ainda sem `FunctionResponse` com o mesmo id.
+    """Chamadas `adk_request_input` ainda sem `FunctionResponse` com o mesmo id.
 
-    Vem só dos eventos, então sobrevive ao reinício da API.
+    Os nós de confirmação do workflow pausam com um `RequestInput` cujo `payload` traz
+    `acao` e `detalhes`. Vem só dos eventos, então sobrevive ao reinício.
     """
     pendentes: dict[str, ConfirmacaoPendente] = {}
     for evento in eventos:
         for chamada in evento.get_function_calls():
-            if chamada.name == REQUEST_CONFIRMATION and chamada.id:
-                original = (chamada.args or {}).get("originalFunctionCall", {})
+            if chamada.name == REQUEST_INPUT and chamada.id:
+                payload = (chamada.args or {}).get("payload") or {}
                 pendentes[chamada.id] = ConfirmacaoPendente(
                     id=chamada.id,
-                    acao=original.get("name", ""),
-                    detalhes=original.get("args") or {},
+                    acao=payload.get("acao", ""),
+                    detalhes=payload.get("detalhes") or {},
                 )
         for resposta in evento.get_function_responses():
-            if resposta.name == REQUEST_CONFIRMATION and resposta.id:
+            if resposta.name == REQUEST_INPUT and resposta.id:
                 pendentes.pop(resposta.id, None)
     return list(pendentes.values())
-
-
-def invocation_id_da_pendencia(eventos: list[Event], id_confirmacao: str) -> str | None:
-    """invocation_id do evento que pediu a confirmação (usado na retomada, se houver)."""
-    for evento in eventos:
-        for chamada in evento.get_function_calls():
-            if chamada.name == REQUEST_CONFIRMATION and chamada.id == id_confirmacao:
-                return evento.invocation_id
-    return None
 
 
 def mensagem_do_usuario(texto: str) -> types.Content:
@@ -65,14 +57,14 @@ def mensagem_do_usuario(texto: str) -> types.Content:
 
 
 def decisao_de_confirmacao(id_confirmacao: str, confirmado: bool) -> types.Content:
-    """A decisão vai ao ADK como FunctionResponse; nada do que o morador escreve a substitui."""
+    """A decisão vai ao ADK como FunctionResponse do `RequestInput`, nunca por texto."""
     return types.Content(
         role="user",
         parts=[
             types.Part(
                 function_response=types.FunctionResponse(
                     id=id_confirmacao,
-                    name=REQUEST_CONFIRMATION,
+                    name=REQUEST_INPUT,
                     response={"confirmed": confirmado},
                 )
             )
@@ -85,15 +77,17 @@ async def executar(
     runner: Runner,
     sessao: Session,
     mensagem: types.Content,
-    invocation_id: str | None = None,
 ) -> MensagemResposta:
     textos: list[str] = []
     async for evento in runner.run_async(
         user_id=sessao.user_id,
         session_id=sessao.id,
         new_message=mensagem,
-        invocation_id=invocation_id,
     ):
+        # os agentes do workflow também emitem a saída estruturada (JSON) como resposta
+        # final; ao morador só vai o que o próprio workflow responde
+        if evento.author != runner.app_name:
+            continue
         if evento.is_final_response() and evento.content and evento.content.parts:
             textos.extend(p.text for p in evento.content.parts if p.text)
 

@@ -1,32 +1,40 @@
-from google.adk import Agent
+from google.adk import Workflow
 from google.adk.apps import App
+from google.adk.workflow import START
 
-from agents.aurora.plugins import ExigirApartamento
-from agents.aurora.subagents.visitantes.agent import visitantes_subagent
+from agents.aurora.agents.classificador.agent import classificador_agent
+from agents.aurora.agents.visitantes.agent import visitantes_agent
+from agents.aurora.nodes import (
+    autorizar_visitante_node,
+    entrada_node,
+    pedir_confirmacao_visitante_node,
+    recusar_solicitacao_node,
+    sem_pedido_node,
+    triagem_da_solicitacao_node,
+    triagem_visitante_node,
+)
 
-root_agent = Agent(
+root_agent = Workflow(
     name="aurora",
-    model="gemini-3.5-flash-lite",
-    description="Assistente do Residencial Aurora.",
-    instruction=(
-        "Você é o assistente do Residencial Aurora e atende moradores em português. "
-        "O apartamento do morador é {apartamento}. "
-        "Você deve atender apenas o morador do apartamento da sessão. "
-        "NUNCA atenda outro apartamento. "
-        "Fale diretamente com o morador, em tom formal de atendente de back-office, "
-        'tratando-o por "senhor(a)" e chamando o apartamento dele de "seu apartamento", '
-        "sem citar o número nem falar dele em terceira pessoa. "
-        "Transfira para o agente 'visitantes' tudo que for sobre visitantes. "
-        "Para outros assuntos, diga que ainda não consegue ajudar."
-    ),
-    sub_agents=[
-        visitantes_subagent,
+    description="Agente responsável por atender os moradores do Residencial Aurora.",
+    edges=[
+        (START, entrada_node, {"classificar": classificador_agent}),
+        (
+            classificador_agent,
+            triagem_da_solicitacao_node,
+            {
+                "recusar": recusar_solicitacao_node,
+                "sem_pedido": sem_pedido_node,
+                "visitantes": visitantes_agent,
+            },
+        ),
+        (
+            visitantes_agent,
+            triagem_visitante_node,
+            {"confirmar": pedir_confirmacao_visitante_node},
+        ),
+        (pedir_confirmacao_visitante_node, autorizar_visitante_node),
     ],
-    mode="chat",
 )
 
-app = App(
-    name="aurora",
-    root_agent=root_agent,
-    plugins=[ExigirApartamento()],
-)
+app = App(name="aurora", root_agent=root_agent)

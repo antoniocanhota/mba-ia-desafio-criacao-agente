@@ -66,7 +66,6 @@ async def responder_confirmacao(
         runner,
         sessao,
         servico.decisao_de_confirmacao(entrada.id, entrada.confirmado),
-        invocation_id=servico.invocation_id_da_pendencia(sessao.events, entrada.id),
     )
 
 

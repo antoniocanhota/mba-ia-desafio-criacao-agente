@@ -21,7 +21,8 @@ def listar_visitantes(session: Session, apartamento: str) -> list[Visitante]:
     )
 
 
-def autorizar_visitante(session: Session, apartamento: str, nome: str, data: str) -> Visitante:
+def validar_visita(nome: str, data: str) -> tuple[str, date]:
+    """Nome e data (AAAA-MM-DD) válidos; a mensagem do erro pode ir ao morador."""
     nome = nome.strip()
     if not nome:
         raise DadosInvalidos("Informe o nome do visitante.")
@@ -29,6 +30,11 @@ def autorizar_visitante(session: Session, apartamento: str, nome: str, data: str
         dia = date.fromisoformat(data)
     except ValueError:
         raise DadosInvalidos("Data inválida. Use o formato AAAA-MM-DD.") from None
+    return nome, dia
+
+
+def autorizar_visitante(session: Session, apartamento: str, nome: str, data: str) -> Visitante:
+    nome, dia = validar_visita(nome, data)
     return inserir_com_codigo(
         session,
         Visitante.id,
