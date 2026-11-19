@@ -6,10 +6,13 @@ from pydantic import BaseModel, Field
 
 class ClassificadorOutput(BaseModel):
     # `Literal`: vira enum na declaração e o modelo não inventa outro assunto
-    assunto: Literal["visitantes", "fora_do_escopo", "sem_pedido"] = Field(
+    assunto: Literal["visitantes", "reservas", "fora_do_escopo", "sem_pedido"] = Field(
         description=(
             "'visitantes': listar ou autorizar visitantes, inclusive respostas curtas que "
             "continuam esse assunto (por exemplo, só um nome ou uma data). "
+            "'reservas': reservar, cancelar, listar ou consultar disponibilidade do salão de "
+            "festas, da churrasqueira ou da quadra, inclusive respostas curtas que continuam "
+            "esse assunto (por exemplo, só uma área ou uma data). "
             "'fora_do_escopo': um pedido ou pergunta do morador sobre qualquer outro "
             "assunto (o assistente ainda não resolve). "
             "'sem_pedido': mensagem que não traz pedido nem pergunta, como saudação, "
@@ -28,6 +31,7 @@ não há pedido nem pergunta compreensível, é `sem_pedido`. Exemplos:
 - "Quero liberar a entrada do Carlos amanhã" → visitantes
 - "Quem está autorizado a entrar?" → visitantes
 - "Quero que troquem a lâmpada do corredor" → fora_do_escopo
+- "Reserve a quadra para amanhã" / "Cancele minha reserva" → reservas
 - "Qual o telefone da portaria?" → fora_do_escopo
 - "Olá" / "Bom dia" / "Obrigado" → sem_pedido
 - "asdf qwer" / "kkkk" / "???" / letras ou palavras soltas sem sentido → sem_pedido

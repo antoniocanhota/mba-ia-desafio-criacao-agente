@@ -2,6 +2,7 @@
 
 import uuid
 from collections.abc import AsyncGenerator
+from datetime import date
 from typing import Any
 
 from google.adk import Context, Event
@@ -11,16 +12,20 @@ from google.genai import types
 from pydantic import BaseModel
 
 from agents.aurora.agents.classificador.agent import ClassificadorOutput
+from agents.aurora.agents.reservas.agent import ReservasOutput
 from agents.aurora.agents.visitantes.agent import VisitantesOutput
 from db.database import SessionLocal
-from db.repo import visitantes
+from db.repo import reservas, visitantes
 from db.repo.apartamentos import apartamento_existe
 
 APARTAMENTO_INVALIDO = "Apartamento não informado ou inválido."
-FORA_DO_ESCOPO = "Senhor(a), por enquanto só consigo ajudar com os visitantes de seu apartamento."
+FORA_DO_ESCOPO = (
+    "Senhor(a), por enquanto só consigo ajudar com os visitantes e as reservas de seu apartamento."
+)
 SEM_PEDIDO = (
     "Olá, senhor(a). Em que posso ajudar? No momento atendo pedidos sobre os visitantes "
-    "de seu apartamento: consultar os autorizados ou autorizar uma entrada."
+    "de seu apartamento (consultar os autorizados ou autorizar uma entrada) e sobre as "
+    "reservas (salão de festas, churrasqueira e quadra)."
 )
 NEGADA = "Senhor(a), a autorização não foi feita e nada foi alterado."
 # janela do histórico que os agentes recebem (mensagens do morador + respostas)
@@ -29,6 +34,7 @@ CONVERSA = "temp:conversa"  # `temp:` não é persistido nem aparece nos eventos
 MENSAGEM = "temp:mensagem"
 # pedidos aguardando confirmação, por id da pendência (persistido: sobrevive à retomada)
 PEDIDOS_DE_VISITA = "pedidos_de_visita"
+PEDIDOS_DE_RESERVA = "pedidos_de_reserva"
 RESPOSTA_DA_CONFIRMACAO = {
     "type": "object",
     "properties": {"confirmed": {"type": "boolean"}},
@@ -42,6 +48,16 @@ class PedidoDeVisita(BaseModel):
     id: str
     nome: str
     data: str
+
+
+class PedidoDeReserva(BaseModel):
+    """Reserva com cobrança já validada pelo código, aguardando a confirmação."""
+
+    id: str
+    area: str
+    nome_da_area: str
+    data: str
+    taxa: float
 
 
 def _resposta(texto: str) -> Event:
@@ -184,3 +200,107 @@ async def autorizar_visitante_node(ctx: Context, node_input: dict) -> Event:
         f"Senhor(a), a entrada de {visitante.nome} foi autorizada para "
         f"{visitante.data.isoformat()}."
     )
+
+
+def _gravar_reserva(apartamento: str, area: str, dia: date) -> Event:
+    """Grava a reserva; data tomada (inclusive por corrida) é recusa normal."""
+    try:
+        with SessionLocal() as session:
+            reserva = reservas.reservar(session, apartamento, area, dia)
+    except reservas.DataIndisponivel:
+        return _resposta(f"Senhor(a), a data {dia.isoformat()} não está disponível nessa área.")
+    return _resposta(
+        f"Senhor(a), a reserva {reserva.codigo} foi feita para {reserva.data.isoformat()}."
+    )
+
+
+@node
+async def triagem_reserva_node(ctx: Context, node_input: ReservasOutput) -> Event:
+    """Valida em código e executa o que não precisa de confirmação.
+
+    Cancelar a própria reserva e reservar área sem taxa gravam direto. Área com taxa
+    (cobrança) sempre vai para a confirmação. O apartamento vem do state, nunca do modelo.
+    """
+    if node_input.acao == "responder" or not node_input.area or not node_input.data:
+        return _resposta(node_input.mensagem)
+    apartamento = _apartamento(ctx)
+    if apartamento is None:
+        return _resposta(APARTAMENTO_INVALIDO)
+    try:
+        with SessionLocal() as session:
+            area = reservas.buscar_area(session, node_input.area)
+            dia = reservas.validar_data(node_input.data)
+            if node_input.acao == "cancelar":
+                cancelada = reservas.cancelar(session, apartamento, area.id, dia)
+                livre = True
+            else:
+                cancelada = False
+                livre = reservas.data_livre(session, area.id, dia)
+    except visitantes.DadosInvalidos as erro:
+        return _resposta(f"Senhor(a), não foi possível continuar: {erro}")
+
+    if node_input.acao == "cancelar":
+        if not cancelada:
+            return _resposta(
+                f"Senhor(a), não encontrei reserva de seu apartamento para {area.nome} "
+                f"em {dia.isoformat()}."
+            )
+        return _resposta(f"Senhor(a), a reserva de {area.nome} em {dia.isoformat()} foi cancelada.")
+    if not livre:
+        return _resposta(f"Senhor(a), {area.nome} não está disponível em {dia.isoformat()}.")
+    if area.taxa <= 0:
+        return _gravar_reserva(apartamento, area.id, dia)
+    pedido = PedidoDeReserva(
+        id=str(uuid.uuid4()),
+        area=area.id,
+        nome_da_area=area.nome,
+        data=dia.isoformat(),
+        taxa=area.taxa,
+    )
+    return Event(actions=EventActions(route="confirmar"), output=pedido)
+
+
+@node
+async def pedir_confirmacao_reserva_node(
+    ctx: Context, node_input: PedidoDeReserva
+) -> AsyncGenerator[Any, None]:
+    """PAUSA o grafo até a rota de confirmações responder (reserva com cobrança)."""
+    pedidos = dict(ctx.state.get(PEDIDOS_DE_RESERVA) or {})
+    pedidos[node_input.id] = {"area": node_input.area, "data": node_input.data}
+    ctx.state[PEDIDOS_DE_RESERVA] = pedidos
+
+    pergunta = (
+        f"Senhor(a), confirma a reserva de {node_input.nome_da_area} em {node_input.data}? "
+        f"Haverá cobrança de R$ {node_input.taxa:.2f}."
+    )
+    yield _resposta(pergunta)
+    yield RequestInput(
+        interrupt_id=node_input.id,
+        message=pergunta,
+        payload={
+            "acao": "reservar_area",
+            "detalhes": {
+                "area": node_input.area,
+                "data": node_input.data,
+                "taxa": node_input.taxa,
+            },
+        },
+        response_schema=RESPOSTA_DA_CONFIRMACAO,
+    )
+
+
+@node
+async def gravar_reserva_confirmada_node(ctx: Context, node_input: dict) -> Event:
+    """Recebe a resposta da confirmação; só `confirmed` true grava."""
+    pedidos = dict(ctx.state.get(PEDIDOS_DE_RESERVA) or {})
+    pedido = pedidos.pop(_id_da_confirmacao(ctx) or "", None)
+    ctx.state[PEDIDOS_DE_RESERVA] = pedidos
+
+    if pedido is None:
+        return _resposta("Senhor(a), não encontrei o pedido desta confirmação.")
+    if node_input.get("confirmed") is not True:
+        return _resposta("Senhor(a), a reserva não foi feita e nada foi alterado.")
+    apartamento = _apartamento(ctx)
+    if apartamento is None:
+        return _resposta(APARTAMENTO_INVALIDO)
+    return _gravar_reserva(apartamento, pedido["area"], date.fromisoformat(pedido["data"]))

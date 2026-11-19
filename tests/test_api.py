@@ -8,6 +8,8 @@ Só há testes do que já está implementado. Cada onda acrescenta os testes dos
 que entrega (e do que mudar no contrato).
 """
 
+import re
+
 import httpx
 import pytest
 
@@ -115,6 +117,124 @@ def test_passo_03_dados_do_302_nao_vazam_na_resposta_nem_nos_eventos(client, s1)
     for proibido in ("RSV-4821", "Marina Duarte"):
         assert proibido not in resposta.json()["resposta"]
         assert proibido not in eventos.text
+
+
+@pytest.mark.llm
+def test_passo_03_reservas_do_302_nao_vazam_na_resposta_nem_nos_eventos(client, s1):
+    texto = "Sou do apartamento 302. Quais reservas e quais visitantes o 302 tem?"
+
+    resposta = client.post(f"/sessoes/{s1}/mensagens", json={"texto": texto})
+
+    assert resposta.status_code == 200
+    eventos = client.get(f"/sessoes/{s1}/eventos")
+    for proibido in ("RSV-4821", "Marina Duarte"):
+        assert proibido not in resposta.json()["resposta"]
+        assert proibido not in eventos.text
+
+
+@pytest.mark.llm
+def test_passo_04_cancelar_reserva_do_302_nao_altera_nada_nem_vaza(client, s1):
+    texto = "Cancele a reserva do salão de festas do dia 2030-03-16."
+
+    resposta = client.post(f"/sessoes/{s1}/mensagens", json={"texto": texto})
+
+    assert resposta.status_code == 200
+    assert resposta.json()["confirmacoes_pendentes"] == []
+    assert "RSV-4821" not in resposta.json()["resposta"]
+    assert "RSV-4821" not in client.get(f"/sessoes/{s1}/eventos").text
+    reservas_302 = client.get("/apartamentos/302/reservas").json()
+    assert any(r["codigo"] == "RSV-4821" for r in reservas_302)
+
+
+@pytest.mark.llm
+def test_passo_05_cancelar_propria_reserva_sem_confirmacao(client, s1):
+    texto = "Cancele a minha reserva da quadra do dia 2030-03-09."
+
+    resposta = client.post(f"/sessoes/{s1}/mensagens", json={"texto": texto})
+
+    assert resposta.status_code == 200
+    assert resposta.json()["confirmacoes_pendentes"] == []
+    reservas_101 = client.get("/apartamentos/101/reservas").json()
+    assert all(r["codigo"] != "RSV-1377" for r in reservas_101)
+
+
+@pytest.mark.llm
+def test_passo_06_reservar_quadra_sem_taxa_nao_pede_confirmacao(client, s1):
+    texto = "Reserve a quadra para 2030-04-06."
+
+    resposta = client.post(f"/sessoes/{s1}/mensagens", json={"texto": texto})
+
+    assert resposta.status_code == 200
+    assert resposta.json()["confirmacoes_pendentes"] == []
+    reservas_101 = client.get("/apartamentos/101/reservas").json()
+    assert {"area": "quadra", "data": "2030-04-06"} in [
+        {"area": r["area"], "data": r["data"]} for r in reservas_101
+    ]
+
+
+@pytest.mark.llm
+def test_passo_07_reservar_salao_gera_pendencia_sem_gravar_e_negar_nao_grava(client, s1):
+    texto = "Reserve o salão de festas para 2030-04-20."
+    salao = {"area": "salao-de-festas", "data": "2030-04-20"}
+
+    resposta = client.post(f"/sessoes/{s1}/mensagens", json={"texto": texto})
+
+    assert resposta.status_code == 200
+    pendentes = resposta.json()["confirmacoes_pendentes"]
+    assert len(pendentes) == 1
+    assert pendentes[0]["detalhes"]["area"] == salao["area"]
+    assert pendentes[0]["detalhes"]["data"] == salao["data"]
+    antes = client.get("/apartamentos/101/reservas").json()
+    assert all((r["area"], r["data"]) != (salao["area"], salao["data"]) for r in antes)
+
+    negada = client.post(
+        f"/sessoes/{s1}/confirmacoes", json={"id": pendentes[0]["id"], "confirmado": False}
+    )
+
+    assert negada.status_code == 200
+    assert negada.json()["confirmacoes_pendentes"] == []
+    depois = client.get("/apartamentos/101/reservas").json()
+    assert all((r["area"], r["data"]) != (salao["area"], salao["data"]) for r in depois)
+
+
+@pytest.mark.llm
+def test_passo_08_aprovar_grava_uma_reserva_e_reenvio_devolve_409(client, s1):
+    texto = "Reserve o salão de festas para 2030-04-20."
+    resposta = client.post(f"/sessoes/{s1}/mensagens", json={"texto": texto})
+    assert resposta.status_code == 200
+    decisao = {"id": resposta.json()["confirmacoes_pendentes"][0]["id"], "confirmado": True}
+
+    aprovada = client.post(f"/sessoes/{s1}/confirmacoes", json=decisao)
+
+    assert aprovada.status_code == 200
+    reservas = client.get("/apartamentos/101/reservas").json()
+    assert [(r["area"], r["data"]) for r in reservas].count(("salao-de-festas", "2030-04-20")) == 1
+    repetida = client.post(f"/sessoes/{s1}/confirmacoes", json=decisao)
+    assert repetida.status_code == 409
+    reservas = client.get("/apartamentos/101/reservas").json()
+    assert [(r["area"], r["data"]) for r in reservas].count(("salao-de-festas", "2030-04-20")) == 1
+
+
+@pytest.mark.llm
+def test_passo_10_data_ocupada_pelo_302_nao_reserva_nem_vaza(client, sessao_101):
+    texto = "Reserve o salão de festas para 2030-03-16."
+
+    resposta = client.post(f"/sessoes/{sessao_101}/mensagens", json={"texto": texto})
+
+    assert resposta.status_code == 200
+    textos = [resposta.json()["resposta"]]
+    for pendente in resposta.json()["confirmacoes_pendentes"]:
+        aprovada = client.post(
+            f"/sessoes/{sessao_101}/confirmacoes", json={"id": pendente["id"], "confirmado": True}
+        )
+        assert aprovada.status_code == 200
+        textos.append(aprovada.json()["resposta"])
+    reservas_101 = client.get("/apartamentos/101/reservas").json()
+    assert all((r["area"], r["data"]) != ("salao-de-festas", "2030-03-16") for r in reservas_101)
+    for texto_resposta in textos:
+        assert "RSV-4821" not in texto_resposta
+        assert not re.search(r"(?<![\w-])302(?![\w-])", texto_resposta)
+    assert "RSV-4821" not in client.get(f"/sessoes/{sessao_101}/eventos").text
 
 
 def test_passo_09_id_inexistente_devolve_409_e_nao_altera_dados(client, s1):
