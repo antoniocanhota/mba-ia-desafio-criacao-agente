@@ -1,10 +1,10 @@
 from datetime import date
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from db.database import inserir_com_codigo
-from db.models import Visitante
+from db.models import Visitante, hash_visita
 
 
 class DadosInvalidos(ValueError):
@@ -35,9 +35,18 @@ def validar_visita(nome: str, data: str) -> tuple[str, date]:
 
 def autorizar_visitante(session: Session, apartamento: str, nome: str, data: str) -> Visitante:
     nome, dia = validar_visita(nome, data)
-    return inserir_com_codigo(
-        session,
-        Visitante.id,
-        "VIS",
-        lambda codigo: Visitante(id=codigo, apartamento=apartamento, nome=nome, data=dia),
-    )
+    chave = hash_visita(apartamento, nome, dia)
+    existente = session.get(Visitante, chave)
+    if existente is not None:
+        return existente
+    visitante = Visitante(hash=chave, apartamento=apartamento, nome=nome, data=dia)
+    session.add(visitante)
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        existente = session.get(Visitante, chave)
+        if existente is None:
+            raise
+        return existente
+    return visitante

@@ -6,15 +6,8 @@ import os
 from datetime import date
 from pathlib import Path
 
-from db.database import (
-    DB_PATH,
-    Base,
-    SessionLocal,
-    criar_tabelas,
-    engine,
-    gerar_codigo,
-)
-from db.models import Apartamento, Area, Reserva, Visitante
+from db.database import DB_PATH, Base, SessionLocal, criar_tabelas, engine
+from db.models import Apartamento, Area, Reserva, Visitante, hash_visita
 
 
 def carregar(variavel: str) -> list[dict]:
@@ -51,13 +44,11 @@ def main() -> None:
         session.flush()
         session.add_all(Reserva(**r | {"data": date.fromisoformat(r["data"])}) for r in reservas)
         for v in visitantes:
-            session.add(
-                Visitante(
-                    id=gerar_codigo(session, Visitante.id, "VIS"),
-                    **v | {"data": date.fromisoformat(v["data"])},
-                )
-            )
-            session.flush()
+            dia = date.fromisoformat(v["data"])
+            chave = hash_visita(v["apartamento"], v["nome"], dia)
+            if session.get(Visitante, chave) is None:
+                session.add(Visitante(hash=chave, **v | {"data": dia}))
+                session.flush()
         session.commit()
 
     if args.sessoes:

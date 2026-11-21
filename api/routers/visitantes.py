@@ -16,5 +16,5 @@ def listar_visitantes(apartamento: ApartamentoPath, session: SessionDep) -> Sequ
     return session.scalars(
         select(Visitante)
         .where(Visitante.apartamento == apartamento)
-        .order_by(Visitante.data, Visitante.id)
+        .order_by(Visitante.data, Visitante.nome)
     ).all()
