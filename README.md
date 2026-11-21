@@ -1,42 +1,65 @@
 # Regra é regra: o assistente virtual do Residencial Aurora
 
-Assistente em português para os moradores do Residencial Aurora, construído com o [Google ADK](https://google.github.io/adk-docs/) e exposto por uma API FastAPI. O assistente (`agents/aurora`) é um `Workflow` do ADK: um nó de entrada valida o apartamento da sessão, um classificador (LLM) indica o assunto e a triagem (código) encaminha ao especialista. Hoje há dois especialistas, visitantes e reservas: eles só leem (tools) e interpretam o pedido; validação, cancelamento, gravação e confirmação são feitos por nós de código. Autorizar visitante e reservar área com taxa maior que zero ficam pendentes até a rota de confirmações; cancelar a própria reserva e reservar área sem taxa gravam direto, e a exclusividade de área e data vale na gravação (índice único parcial). Outros assuntos recebem a resposta de que o assistente ainda não consegue ajudar. As regras do condomínio estão em `dados/regulamento.md`.
+Assistente em português para os moradores do Residencial Aurora, construído com o [Google ADK](https://google.github.io/adk-docs/) (2.2.0, versão exata fixada no `pyproject.toml`) e exposto por uma API FastAPI. Estrutura: `agents/` (agentes ADK), `api/` (rotas, schemas e services), `db/` (banco e script de restauração), `dados/` (dados iniciais) e `tests/` (suíte pytest). O README tem três partes: [Arquitetura](#arquitetura), [Garantias](#garantias) e [Como rodar](#como-rodar).
 
-Estrutura: `agents/` (agentes ADK), `api/` (rotas, schemas e services), `db/` (banco e script de reset), `dados/` (dados iniciais) e `tests/` (suíte pytest).
+## Arquitetura
 
-## Instalar as dependências
+O assistente (`agents/aurora/agent.py`) é um `Workflow` do ADK: o "agente principal" é o próprio grafo, que não tem tool nenhuma e não recebe o regulamento. Ele fala com o morador, decide o caminho e entrega o trabalho a cinco agentes e a nós de código. O `App` é o mesmo no `adk web` e na API.
+
+| Agente / nó | Responsabilidade | Como é acionado | Por quê |
+|---|---|---|---|
+| `entrada_node` (código) | Barra sessão sem apartamento válido e monta o histórico recente | Início de toda mensagem | O apartamento é validado antes de qualquer modelo rodar |
+| `classificador` (LLM, `agents/aurora/agents/classificador`) | Diz o assunto: visitantes, reservas, regulamento, fora do escopo ou sem pedido | Aresta do workflow | Saída estruturada com `Literal`: o modelo só escolhe entre assuntos fixos, e a triagem é código |
+| `visitantes` (LLM) | Lista os visitantes do apartamento (tool) e entende o pedido de autorização | Aresta do workflow, depois da triagem | Só lê e interpreta; nunca grava |
+| `reservas` (LLM) | Lista reservas, consulta se uma data está livre ou ocupada (tools) e entende pedidos de reservar e cancelar | Aresta do workflow, depois da triagem | Só lê e interpreta; nunca grava |
+| `regulamento` + `leitor_do_regulamento` (LLM) | Responde dúvidas do regulamento, capítulo a capítulo | O leitor é acionado por `AgentTool` dentro do especialista | O texto do capítulo fica na sessão interna do leitor e só a resposta final entra nos eventos (garantia 4) |
+| Nós de código (`agents/aurora/nodes.py`) | Validam nome, data e área; cancelam, gravam, pedem a confirmação e retomam | Arestas do workflow | Toda ação que muda dado ou cobra é decidida por código, não pelo que o modelo escreve |
+
+Por que um workflow e não um agente com sub-agentes e tools de escrita: o modelo nunca tem uma tool que grave. Ele devolve uma intenção estruturada (`acao`, `area`, `data`), e o código valida e executa. Isso deixa a confirmação, o apartamento e a exclusividade fora do alcance do prompt. As leituras (`listar_visitantes`, `listar_reservas`, `consultar_disponibilidade`, `consultar_regulamento`) são tools em `agents/aurora/tools/`; as gravações (autorizar visitante, reservar, cancelar) são feitas pelos nós de código, que chamam as mesmas funções de `db/repo/`.
+
+Fluxo de uma mensagem: `entrada_node` → `classificador` → triagem → especialista → nó de triagem do especialista → (se for cobrança ou acesso) nó que pausa pedindo confirmação → rota de confirmações → nó que grava. Autorizar visitante e reservar área com taxa maior que zero ficam pendentes; cancelar a própria reserva e reservar área sem taxa gravam direto.
+
+## Garantias
+
+**1. Cobrança ou acesso só com confirmação.**
+- `agents/aurora/nodes.py`, `pedir_confirmacao_visitante_node` e `pedir_confirmacao_reserva_node`: terminam em `yield RequestInput(...)`, que pausa o workflow e cria a pendência (`adk_request_input`) com `acao` e `detalhes` no `payload`. Os nós que gravam, `autorizar_visitante_node` e `gravar_reserva_confirmada_node`, só existem depois dessa pausa e só gravam com `node_input.get("confirmed") is True`.
+- `api/routers/sessoes.py`, `responder_confirmacao`: devolve `409` se o `id` não estiver entre as pendências da sessão, que `api/services/sessoes.py::confirmacoes_pendentes` calcula dos eventos (chamadas sem resposta). Um `id` já respondido deixa de ser pendente.
+- Não depende do modelo: o texto "já estou confirmando aqui" é só uma mensagem; a única forma de retomar é o `FunctionResponse` montado por `decisao_de_confirmacao`. Cada pedido fica no state indexado pelo `id` da pendência, então aprovar grava exatamente o que foi mostrado.
+
+**2. Cada sessão pertence a um apartamento.**
+- `api/routers/sessoes.py`, `criar_sessao`: grava `state["apartamento"]` uma única vez.
+- `agents/aurora/tools/sessao.py::apartamento_da_sessao` lê do state, e nenhuma tool tem parâmetro de apartamento (`agents/aurora/tools/*.py`). `agents/aurora/nodes.py::_apartamento` faz o mesmo nos nós de código e ainda confere o apartamento no banco.
+- `db/repo/reservas.py`: `data_livre` devolve só livre ou ocupada, e `cancelar` filtra por apartamento e devolve `False` para reserva de outro, sem confirmar que ela existe. Não depende do modelo: o apartamento que o morador diga ser o dele nunca chega a uma função de gravação ou de leitura.
+
+**3. Nada se perde no reinício.**
+- `api/main.py`, `lifespan`: `SqliteSessionService(SESSIONS_DB_PATH)` guarda as sessões em arquivo (`sessoes.db`), separado de `banco.db`, onde ficam reservas e visitantes.
+- As pendências vêm dos eventos gravados e os pedidos pendentes ficam no state da sessão, então aprovar depois do reinício funciona. O script de restauração só apaga as sessões com `--sessoes`.
+
+**4. O regulamento é consultado, não carregado.**
+- `agents/aurora/tools/regulamento_tools.py`: divide `dados/regulamento.md` por capítulo; `consultar_regulamento` devolve só o capítulo pedido.
+- `agents/aurora/agents/regulamento/agent.py`: o `leitor_do_regulamento` roda via `AgentTool`, com sessão interna própria, e só recebe o índice de títulos nas instruções. O texto do capítulo não entra nos eventos da sessão do morador, só a resposta final. Nenhum outro agente recebe o regulamento.
+
+**5. Dois moradores, uma reserva.**
+- `db/models/reserva.py`: índice único parcial `ux_reservas_area_data_ativa` em `(area, data) WHERE ativa = 1`, criado junto com a tabela.
+- `db/repo/reservas.py::reservar`: grava e converte o `IntegrityError` em `DataIndisponivel`, que `agents/aurora/nodes.py::_gravar_reserva` transforma em recusa normal (a conferência `data_livre` antes é só para responder melhor). O banco decide quem chegou primeiro, no instante da gravação. Cancelar é `ativa = 0` (soft delete), então o código da reserva nunca é reaproveitado.
+
+Os testes automatizados em `tests/test_api.py` existem para garantir as cinco garantias, seguindo o fluxo do avaliador passo a passo.
+
+## Como rodar
+
+**Pré-requisitos:** [uv](https://docs.astral.sh/uv/) (instala o Python 3.12 pedido em `.python-version`) e uma chave de API do Gemini ([Google AI Studio](https://aistudio.google.com/)). Não há serviço externo: tudo usa SQLite em arquivo.
 
 ```bash
+cp .env.example .env     # preencha GOOGLE_API_KEY
 uv sync
+uv run python -m db.reset    # restaura apartamentos, áreas, reservas e visitantes
+uv run fastapi run           # API em http://localhost:8000
 ```
 
-## Subindo a API
-
-Com o `.env` preenchido (ver [Dados](#dados)) e o banco carregado (`uv run python -m db.reset`):
-
-```bash
-uv run fastapi run
-```
-
-O `fastapi run` sobe sem auto-reload, então a API só reinicia quando você a reinicia, o que é mais previsível para a entrega. Durante o desenvolvimento, `uv run fastapi dev` recarrega a API a cada alteração no código.
-
-- Documentação (Swagger UI): http://127.0.0.1:8000/docs (a raiz `/` redireciona para ela)
-
-## Subindo o ADK web
-
-Por padrão o ADK web também usa a porta 8000, que já é da API. Para evitar o conflito, recomenda-se rodá-lo na 8001:
-
-```bash
-PYTHONPATH=. uv run adk web agents --port 8001
-```
-
-- Interface: http://127.0.0.1:8001/
-
-## Dados
-
-Copie `.env.example` para `.env` e preencha as variáveis faltantes. Valores sugeridos (caminhos relativos à raiz do projeto):
+Variáveis do `.env` (caminhos relativos à raiz do projeto):
 
 ```
+GOOGLE_API_KEY=            # chave do Gemini
 DB_PATH=banco.db
 SESSIONS_DB_PATH=sessoes.db
 APARTAMENTOS_JSON_PATH=dados/apartamentos.json
@@ -45,46 +68,8 @@ RESERVAS_JSON_PATH=dados/reservas.json
 VISITANTES_JSON_PATH=dados/visitantes.json
 ```
 
-- **Apartamentos e áreas** não têm rotas na API; ficam no banco, carregados dos JSON pelo script de reset.
-- **Reservas e visitantes** só podem ser listados na API (`GET /apartamentos/{apartamento}/reservas`, `GET /apartamentos/{apartamento}/visitantes`) e também ficam no banco. Reservas e visitantes têm chave estrangeira para `apartamentos` (e reservas para `areas`), e uma área só aceita uma reserva por data (índice único). As tabelas são criadas quando a API sobe, mas só são populadas pelo script de reset, então rode-o antes da primeira execução.
-
-### Resetar o banco
-
-O script abaixo apaga as tabelas `apartamentos`, `areas`, `reservas` e `visitantes`, recria e carrega os dados iniciais dos arquivos apontados por `APARTAMENTOS_JSON_PATH`, `AREAS_JSON_PATH`, `RESERVAS_JSON_PATH` e `VISITANTES_JSON_PATH`. Útil para voltar ao estado original depois de testar alterações pela API:
-
-```bash
-uv run python -m db.reset
-```
-
-Por padrão o reset **não** apaga as sessões (conversas e confirmações pendentes), que ficam em `SESSIONS_DB_PATH`, arquivo separado do banco de reservas e visitantes. Para apagá-las também:
-
-```bash
-uv run python -m db.reset --sessoes
-```
-
-## Sessões e conversas
-
-- `POST /sessoes` com `{"apartamento": "101"}` cria a sessão (`201`) e grava o apartamento no state.
-- `POST /sessoes/{session_id}/mensagens` com `{"texto": "..."}` devolve `resposta` e `confirmacoes_pendentes`.
-- `POST /sessoes/{session_id}/confirmacoes` com `{"id": "...", "confirmado": true|false}` responde uma confirmação pendente (mesmo formato da rota de mensagens). O `id` precisa estar em `confirmacoes_pendentes` da sessão; qualquer outro, inclusive já respondido, devolve `409` sem executar nada. A decisão volta ao ADK como `FunctionResponse` de `adk_request_input` (o `RequestInput` do nó de confirmação do workflow), nunca por texto da conversa.
-- `GET /sessoes/{session_id}/eventos` lista todos os eventos da sessão.
-- Sessão inexistente devolve `404` nas rotas com `{session_id}`.
-
-## Testes
-
-```bash
-uv run pytest                 # precisa de GOOGLE_API_KEY no .env; usa bancos temporários
-uv run pytest -m "not llm"    # só o que não chama o Gemini
-```
-
-Os testes marcados com `llm` chamam o Gemini real e consomem cota; os demais rodam sem rede. Os testes sobem a API com bancos temporários, então `banco.db` e `sessoes.db` não são alterados.
-
-## Qualidade de código
-
-Antes de commitar, rode (todos via `uv`):
-
-```bash
-uv run ruff check --fix   # lint e ordenação de imports
-uv run ruff format        # formatação
-uv run ty check           # checagem de tipos
-```
+- **Subida:** `uv run fastapi run` (sem auto-reload, mais previsível). Em desenvolvimento, `uv run fastapi dev` recarrega a cada alteração. Documentação em http://127.0.0.1:8000/docs.
+- **Restauração dos dados:** `uv run python -m db.reset` apaga e recarrega `apartamentos`, `areas`, `reservas` e `visitantes` a partir de `dados/`. Não apaga as sessões; para apagar também as conversas e as confirmações pendentes, use `uv run python -m db.reset --sessoes`.
+- **ADK web (desenvolvimento):** `PYTHONPATH=. uv run adk web agents --port 8001` (a 8000 é da API). Interface em http://127.0.0.1:8001/. As sessões de teste precisam do state com o apartamento (`POST /apps/aurora/users/<user>/sessions` com `{"state": {"apartamento": "101"}}`).
+- **Rotas de verificação:** `GET /apartamentos/{apartamento}/reservas` e `GET /apartamentos/{apartamento}/visitantes`. Reservas e visitantes só são gravados pelo assistente.
+- **Testes:** `uv run pytest` roda a suíte inteira (precisa de `GOOGLE_API_KEY`, usa o Gemini real e consome cota); `uv run pytest -m "not llm"` roda só o que não chama o Gemini. Os testes sobem a API com bancos temporários, então `banco.db` e `sessoes.db` não são alterados.
