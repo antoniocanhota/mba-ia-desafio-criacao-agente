@@ -21,15 +21,15 @@ from db.repo.apartamentos import apartamento_existe
 
 APARTAMENTO_INVALIDO = "Apartamento não informado ou inválido."
 FORA_DO_ESCOPO = (
-    "Senhor(a), por enquanto só consigo ajudar com os visitantes e as reservas de seu apartamento "
+    "Por enquanto só consigo ajudar com os visitantes e as reservas de seu apartamento "
     "e com dúvidas sobre o regulamento."
 )
 SEM_PEDIDO = (
-    "Olá, senhor(a). Em que posso ajudar? No momento atendo pedidos sobre os visitantes "
+    "Olá. Em que posso ajudar? No momento atendo pedidos sobre os visitantes "
     "de seu apartamento (consultar os autorizados ou autorizar uma entrada) e sobre as "
     "reservas (salão de festas, churrasqueira e quadra), além de dúvidas sobre o regulamento."
 )
-NEGADA = "Senhor(a), a autorização não foi feita e nada foi alterado."
+NEGADA = "A autorização não foi feita e nada foi alterado."
 # janela do histórico que os agentes recebem (mensagens do morador + respostas)
 MENSAGENS_NO_HISTORICO = 10
 CONVERSA = "temp:conversa"  # `temp:` não é persistido nem aparece nos eventos
@@ -143,7 +143,7 @@ async def triagem_visitante_node(node_input: VisitantesOutput) -> Event:
     try:
         nome, dia = visitantes.validar_visita(node_input.nome, node_input.data)
     except visitantes.DadosInvalidos as erro:
-        return _resposta(f"Senhor(a), não foi possível autorizar: {erro}")
+        return _resposta(f"Não foi possível autorizar: {erro}")
     pedido = PedidoDeVisita(id=str(uuid.uuid4()), nome=nome, data=dia.isoformat())
     return Event(actions=EventActions(route="confirmar"), output=pedido)
 
@@ -161,9 +161,7 @@ async def pedir_confirmacao_visitante_node(
     pedidos[node_input.id] = {"nome": node_input.nome, "data": node_input.data}
     ctx.state[PEDIDOS_DE_VISITA] = pedidos
 
-    pergunta = (
-        f"Senhor(a), confirma a autorização de entrada de {node_input.nome} em {node_input.data}?"
-    )
+    pergunta = f"Confirma a autorização de entrada de {node_input.nome} em {node_input.data}?"
     yield _resposta(pergunta)  # texto da `resposta` da API enquanto a pendência existe
     yield RequestInput(
         interrupt_id=node_input.id,
@@ -190,7 +188,7 @@ async def autorizar_visitante_node(ctx: Context, node_input: dict) -> Event:
     ctx.state[PEDIDOS_DE_VISITA] = pedidos  # a pendência respondida sai do state
 
     if pedido is None:
-        return _resposta("Senhor(a), não encontrei o pedido desta confirmação.")
+        return _resposta("Não encontrei o pedido desta confirmação.")
     if node_input.get("confirmed") is not True:
         return _resposta(NEGADA)
     apartamento = _apartamento(ctx)
@@ -202,10 +200,9 @@ async def autorizar_visitante_node(ctx: Context, node_input: dict) -> Event:
                 session, apartamento, pedido["nome"], pedido["data"]
             )
     except visitantes.DadosInvalidos as erro:
-        return _resposta(f"Senhor(a), não foi possível autorizar: {erro}")
+        return _resposta(f"Não foi possível autorizar: {erro}")
     return _resposta(
-        f"Senhor(a), a entrada de {visitante.nome} foi autorizada para "
-        f"{visitante.data.isoformat()}."
+        f"A entrada de {visitante.nome} foi autorizada para {visitante.data.isoformat()}."
     )
 
 
@@ -215,10 +212,8 @@ def _gravar_reserva(apartamento: str, area: str, dia: date) -> Event:
         with SessionLocal() as session:
             reserva = reservas.reservar(session, apartamento, area, dia)
     except reservas.DataIndisponivel:
-        return _resposta(f"Senhor(a), a data {dia.isoformat()} não está disponível nessa área.")
-    return _resposta(
-        f"Senhor(a), a reserva {reserva.codigo} foi feita para {reserva.data.isoformat()}."
-    )
+        return _resposta(f"A data {dia.isoformat()} não está disponível nessa área.")
+    return _resposta(f"A reserva {reserva.codigo} foi feita para {reserva.data.isoformat()}.")
 
 
 @node
@@ -244,17 +239,16 @@ async def triagem_reserva_node(ctx: Context, node_input: ReservasOutput) -> Even
                 cancelada = False
                 livre = reservas.data_livre(session, area.id, dia)
     except visitantes.DadosInvalidos as erro:
-        return _resposta(f"Senhor(a), não foi possível continuar: {erro}")
+        return _resposta(f"Não foi possível continuar: {erro}")
 
     if node_input.acao == "cancelar":
         if not cancelada:
             return _resposta(
-                f"Senhor(a), não encontrei reserva de seu apartamento para {area.nome} "
-                f"em {dia.isoformat()}."
+                f"Não encontrei reserva de seu apartamento para {area.nome} em {dia.isoformat()}."
             )
-        return _resposta(f"Senhor(a), a reserva de {area.nome} em {dia.isoformat()} foi cancelada.")
+        return _resposta(f"A reserva de {area.nome} em {dia.isoformat()} foi cancelada.")
     if not livre:
-        return _resposta(f"Senhor(a), {area.nome} não está disponível em {dia.isoformat()}.")
+        return _resposta(f"{area.nome} não está disponível em {dia.isoformat()}.")
     if area.taxa <= 0:
         return _gravar_reserva(apartamento, area.id, dia)
     pedido = PedidoDeReserva(
@@ -277,7 +271,7 @@ async def pedir_confirmacao_reserva_node(
     ctx.state[PEDIDOS_DE_RESERVA] = pedidos
 
     pergunta = (
-        f"Senhor(a), confirma a reserva de {node_input.nome_da_area} em {node_input.data}? "
+        f"Confirma a reserva de {node_input.nome_da_area} em {node_input.data}? "
         f"Haverá cobrança de R$ {node_input.taxa:.2f}."
     )
     yield _resposta(pergunta)
@@ -304,9 +298,9 @@ async def gravar_reserva_confirmada_node(ctx: Context, node_input: dict) -> Even
     ctx.state[PEDIDOS_DE_RESERVA] = pedidos
 
     if pedido is None:
-        return _resposta("Senhor(a), não encontrei o pedido desta confirmação.")
+        return _resposta("Não encontrei o pedido desta confirmação.")
     if node_input.get("confirmed") is not True:
-        return _resposta("Senhor(a), a reserva não foi feita e nada foi alterado.")
+        return _resposta("A reserva não foi feita e nada foi alterado.")
     apartamento = _apartamento(ctx)
     if apartamento is None:
         return _resposta(APARTAMENTO_INVALIDO)
