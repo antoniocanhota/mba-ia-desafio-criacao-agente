@@ -3,10 +3,8 @@ from datetime import date
 from pydantic import BaseModel, ConfigDict
 
 
-class VisitanteEntrada(BaseModel):
+class VisitanteResposta(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     nome: str
     data: date
-
-
-class VisitanteResposta(VisitanteEntrada):
-    model_config = ConfigDict(from_attributes=True)

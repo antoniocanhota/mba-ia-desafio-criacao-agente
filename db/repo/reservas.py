@@ -1,17 +1,55 @@
+import random
+from collections.abc import Callable
 from datetime import date
 from typing import cast
 
 from sqlalchemy import CursorResult, select, update
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import InstrumentedAttribute, Session
 
-from db.database import inserir_com_codigo
+from db.database import Base
 from db.models import Area, Reserva
 from db.repo.visitantes import DadosInvalidos
 
 
 class DataIndisponivel(DadosInvalidos):
     """A área já tem reserva ativa na data. Não identifica quem reservou."""
+
+
+def gerar_codigo(session: Session, coluna: InstrumentedAttribute[str], prefixo: str) -> str:
+    """Gera um código único no formato PREFIXO-NNNN, com sufixo aleatório."""
+    while True:
+        codigo = f"{prefixo}-{random.randint(1000, 9999)}"
+        if session.scalar(select(coluna).where(coluna == codigo)) is None:
+            return codigo
+
+
+def inserir_com_codigo[T: Base](
+    session: Session,
+    coluna: InstrumentedAttribute[str],
+    prefixo: str,
+    criar: Callable[[str], T],
+    tentativas: int = 5,
+) -> T:
+    """Insere a entidade com um código novo, sorteando outro se duas gravações colidirem.
+
+    A checagem prévia de gerar_codigo não impede a corrida entre dois pedidos. Só repete
+    quando o código sorteado passou a existir; qualquer outro IntegrityError (como o de
+    área e data) é relançado.
+    """
+    for _ in range(tentativas):
+        codigo = gerar_codigo(session, coluna, prefixo)
+        entidade = criar(codigo)
+        session.add(entidade)
+        try:
+            session.commit()
+        except IntegrityError:
+            session.rollback()
+            if session.scalar(select(coluna).where(coluna == codigo)) is None:
+                raise
+            continue
+        return entidade
+    raise RuntimeError(f"Não foi possível gerar um código {prefixo} único")
 
 
 def listar_reservas(session: Session, apartamento: str) -> list[Reserva]:
