@@ -9,6 +9,8 @@ que entrega (e do que mudar no contrato).
 """
 
 import re
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 import pytest
@@ -334,6 +336,41 @@ def test_passo_12_piscina_aos_domingos_traz_horario_sem_capitulos_de_outros_assu
 
 
 @pytest.mark.llm
+@pytest.mark.llm
+def test_passo_14_aprovacoes_simultaneas_do_mesmo_salao_gravam_uma_reserva(client):
+    data = "2030-05-11"
+    texto = f"Reserve o salão de festas para {data}."
+    sessoes: dict[str, str] = {}
+    pendencias: dict[str, str] = {}
+    for apartamento in ("101", "201"):
+        criada = client.post("/sessoes", json={"apartamento": apartamento})
+        assert criada.status_code == 201, criada.text
+        sessoes[apartamento] = criada.json()["session_id"]
+        mensagem = client.post(f"/sessoes/{sessoes[apartamento]}/mensagens", json={"texto": texto})
+        assert mensagem.status_code == 200
+        pendentes = mensagem.json()["confirmacoes_pendentes"]
+        assert len(pendentes) == 1
+        pendencias[apartamento] = pendentes[0]["id"]
+    largada = threading.Barrier(2)
+
+    def aprovar(apartamento: str) -> httpx.Response:
+        largada.wait()
+        return client.post(
+            f"/sessoes/{sessoes[apartamento]}/confirmacoes",
+            json={"id": pendencias[apartamento], "confirmado": True},
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        respostas = list(pool.map(aprovar, ("101", "201")))
+
+    assert [r.status_code for r in respostas] == [200, 200]
+    total = 0
+    for apartamento in ("101", "201"):
+        reservas = client.get(f"/apartamentos/{apartamento}/reservas").json()
+        total += [(r["area"], r["data"]) for r in reservas].count(("salao-de-festas", data))
+    assert total == 1
+
+
 def test_passo_13_reinicio_da_api_mantem_eventos_e_dados(client, servidor, s1):
     eventos_antes = client.get(f"/sessoes/{s1}/eventos")
     reservas_antes = client.get("/apartamentos/101/reservas")
