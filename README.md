@@ -13,7 +13,7 @@ O assistente (`agents/aurora/agent.py`) é um `Workflow` do ADK: o "agente princ
 | `visitantes` (LLM) | Lista os visitantes do apartamento (tool) e entende o pedido de autorização | Aresta do workflow, depois da triagem | Só lê e interpreta; nunca grava |
 | `reservas` (LLM) | Lista reservas, consulta se uma data está livre ou ocupada (tools) e entende pedidos de reservar e cancelar | Aresta do workflow, depois da triagem | Só lê e interpreta; nunca grava |
 | `regulamento` + `leitor_do_regulamento` (LLM) | Responde dúvidas do regulamento, capítulo a capítulo | O leitor é acionado por `AgentTool` dentro do especialista | O texto do capítulo fica na sessão interna do leitor e só a resposta final entra nos eventos (garantia 4) |
-| Nós de código (`agents/aurora/nodes.py`) | Validam nome, data e área; cancelam, gravam, pedem a confirmação e retomam | Arestas do workflow | Toda ação que muda dado ou cobra é decidida por código, não pelo que o modelo escreve |
+| Nós de código (`agents/aurora/nodes.py`) | Validam nome, data e área; cancelam, gravam, pedem a confirmação (só para cobrança ou acesso) e retomam | Arestas do workflow | Toda ação que muda dado ou cobra é decidida por código, não pelo que o modelo escreve |
 
 Por que um workflow e não um agente com sub-agentes e tools de escrita: o modelo nunca tem uma tool que grave. Ele devolve uma intenção estruturada (`acao`, `area`, `data`), e o código valida e executa. Isso deixa a confirmação, o apartamento e a exclusividade fora do alcance do prompt. As leituras (`listar_visitantes`, `listar_reservas`, `consultar_disponibilidade`, `consultar_regulamento`) são tools em `agents/aurora/tools/`; as gravações (autorizar visitante, reservar, cancelar) são feitas pelos nós de código, que chamam as mesmas funções de `db/repo/`.
 
@@ -22,7 +22,8 @@ Fluxo de uma mensagem: `entrada_node` → `classificador` → triagem → especi
 ## Garantias
 
 **1. Cobrança ou acesso só com confirmação.**
-- `agents/aurora/nodes.py`, `pedir_confirmacao_visitante_node` e `pedir_confirmacao_reserva_node`: terminam em `yield RequestInput(...)`, que pausa o workflow e cria a pendência (`adk_request_input`) com `acao` e `detalhes` no `payload`. Os nós que gravam, `autorizar_visitante_node` e `gravar_reserva_confirmada_node`, só existem depois dessa pausa e só gravam com `node_input.get("confirmed") is True`.
+- Só pedem confirmação as ações que **cobram** (reservar área com taxa maior que zero) ou **concedem acesso** (autorizar visitante). Reservar área sem taxa e cancelar a própria reserva não custam nada nem liberam acesso, então `triagem_reserva_node` grava direto, sem pausa.
+- `agents/aurora/nodes.py`, `pedir_confirmacao_visitante_node` e `pedir_confirmacao_reserva_node`: terminam em `yield RequestInput(...)`, que pausa o workflow e cria a pendência (`adk_request_input`) com `acao` e `detalhes` no `payload`. Os nós que gravam cobrança ou acesso, `autorizar_visitante_node` e `gravar_reserva_confirmada_node`, só existem depois dessa pausa e só gravam com `node_input.get("confirmed") is True`.
 - `api/routers/sessoes.py`, `responder_confirmacao`: devolve `409` se o `id` não estiver entre as pendências da sessão, que `api/services/sessoes.py::confirmacoes_pendentes` calcula dos eventos (chamadas sem resposta). Um `id` já respondido deixa de ser pendente.
 - Não depende do modelo: o texto "já estou confirmando aqui" é só uma mensagem; a única forma de retomar é o `FunctionResponse` montado por `decisao_de_confirmacao`. Cada pedido fica no state indexado pelo `id` da pendência, então aprovar grava exatamente o que foi mostrado.
 
